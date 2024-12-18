@@ -4,7 +4,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 
-class RMBConfig:
+class RBMConfig:
     n_visible:int = 784 
     n_hidden:int = 128 
     k:int = 1

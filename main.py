@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import make_grid
 
-from agents.rbm import RBM, RMBConfig
+from agents.rbm import RBM, RBMConfig
 
 def plot(X, filename):
     result = np.transpose(X.numpy(), (1, 2, 0))
@@ -53,7 +53,7 @@ def main():
     data_type = "MNIST"  # "CIFAR10"
     # data_type = "CIFAR10"  # "CIFAR10"
 
-    config = RMBConfig()
+    config = RBMConfig()
 
     dataset_cifar10 = datasets.CIFAR10('./data', train=True, 
                                        download=True, 
