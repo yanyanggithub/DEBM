@@ -1,11 +1,9 @@
 import os.path
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.optim as optim
-import torch.nn.functional as F
-from torchvision import datasets, transforms
-
+from torchvision import datasets
+from torchvision.transforms import ToTensor
 from agents.rbm import RBM, RBMConfig
 
 def plot(X, img_shape, filename):
@@ -60,22 +58,22 @@ def main():
 
     config = RBMConfig()
 
-    dataset_cifar10 = datasets.CIFAR10('./data', train=True, 
-                                       download=True, 
-                                       transform=transforms.Compose([transforms.ToTensor()]))
-    
-    dataset_mnist = datasets.MNIST('./data', train=True, 
-                                    download=True, 
-                                    transform=transforms.Compose([transforms.ToTensor()]))
-    
     if data_type == "MNIST":
         img_shape = (28, 28)
-        train_loader = torch.utils.data.DataLoader(dataset_mnist, batch_size=batch_size)
+        config.n_visible = 784
+        config.n_hidden  = 128
+        train_dataset = datasets.MNIST('./data', train=True, download=True, 
+                                       transform=ToTensor())
     elif data_type == "CIFAR10":
         img_shape = (32, 32, 3)
-        train_loader = torch.utils.data.DataLoader(dataset_cifar10, batch_size=batch_size)
         config.n_visible = 3072
-        config.n_hidden  = 1024
+        config.n_hidden  = 1024    
+        train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
+                                         transform=ToTensor())
+        
+    train_loader = torch.utils.data.DataLoader(train_dataset, 
+                                               batch_size=batch_size, 
+                                               shuffle=True)
 
     model = RBM(n_visible=config.n_visible, 
                 n_hidden=config.n_hidden, k=config.k)
