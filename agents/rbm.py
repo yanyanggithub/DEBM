@@ -7,7 +7,7 @@ from torch.nn import functional as F
 class RMBConfig:
     n_visible:int = 784 
     n_hidden:int = 128 
-    k:int = 1
+    k:int = 2
 
 
 class RBM(nn.Module):
@@ -16,9 +16,11 @@ class RBM(nn.Module):
     """
     def __init__(self, n_visible, n_hidden, k):
         super().__init__()
-        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible))
+        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.1)
         self.v_bias = nn.Parameter(torch.zeros(1, n_visible))
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
+        self.gelu = nn.GELU()
+        self.dropout = nn.Dropout(0.1)
         self.k  = k
     
     def _sample(self, prob):
@@ -42,6 +44,10 @@ class RBM(nn.Module):
         h = self._pass(v)
         for _ in range(self.k):
             v_reconstructed = self._reverse_pass(h)
+            v_reconstructed = self.gelu(v_reconstructed)
+            v_reconstructed = self.dropout(v_reconstructed)
             h = self._pass(v_reconstructed)
+            h = self.gelu(h)
+            h = self.dropout(h)
         return v, v_reconstructed
 

@@ -8,10 +8,10 @@ from torchvision.utils import make_grid
 
 from agents.rbm import RBM, RMBConfig
 
-def plot(data_mat):
-    result = np.transpose(data_mat.numpy(), (1, 2, 0))
+def plot(X, filename):
+    result = np.transpose(X.numpy(), (1, 2, 0))
     plt.imshow(result, cmap='gray')
-    plt.show()
+    plt.savefig(filename)
 
 
 def train_rmb(model, config, train_loader, optimizer, n_epochs=20, lr=0.01):
@@ -32,7 +32,7 @@ def train_rmb(model, config, train_loader, optimizer, n_epochs=20, lr=0.01):
 
 def main():
     batch_size = 128 
-    n_epochs = 40 
+    n_epochs = 20 
     learning_rate = 5e-4 
     data_type = "MNIST"  # "CIFAR10"
     # data_type = "CIFAR10"  # "CIFAR10"
@@ -60,11 +60,18 @@ def main():
     model = train_rmb(model, config, train_loader, optimizer, n_epochs=n_epochs, lr=learning_rate)
     W = model.weight
 
+    # test the generated image
+    images = next(iter(train_loader))[0]
+    _, v_gen = model(images.view(-1, config.n_visible))
+
     if data_type == "MNIST":
-        plot(make_grid(W.view(batch_size, 1, 28, 28).data))
+        plot(make_grid(W[:batch_size].view(batch_size, 1, 28, 28).data), 'output/filters.png')
+        plot(make_grid(v_gen.view(batch_size, 1, 28, 28).data), 'output/gen_img.png')
+
     elif data_type == "CIFAR10":
-        plot(make_grid(W.view(batch_size, 3, 32, 32).data))
-    
+        plot(make_grid(W[:batch_size].view(batch_size, 3, 32, 32).data), 'output/filters.png')
+        plot(make_grid(v_gen.view(batch_size, 3, 32, 32).data), 'output/gen_img.png')
+
 
 if __name__ == "__main__":
     main()

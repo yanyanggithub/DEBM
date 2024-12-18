@@ -1,2 +1,2 @@
 # Deep Belief Networks (DBN)
-Experiments on elements of unsupervised learning blocks, such as RBM(restricted Boltzmann machine) and autoencoder to discover and learn patterns in data.
+Experiments on energe based models (e.g. Boltzmann machines) as agents to discover and learn patterns in data.
