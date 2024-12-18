@@ -5,13 +5,18 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import datasets, transforms
-from torchvision.utils import make_grid
 
 from agents.rbm import RBM, RBMConfig
 
-def plot(X, filename):
-    result = np.transpose(X.numpy(), (1, 2, 0))
-    plt.imshow(result, cmap='gray')
+def plot(X, img_shape, filename):
+    X = X.detach().numpy()
+    fig = plt.figure(figsize=(5, 5))
+    for i in range(25): 
+        sub = fig.add_subplot(5, 5, i+1)
+        sub.imshow(X[i, :].reshape(img_shape), cmap=plt.cm.gray)
+    
+    plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
+    plt.tight_layout()
     plt.savefig(filename)
 
 
@@ -19,7 +24,7 @@ def train_rmb(model, config, train_loader, optimizer,
               checkpt="output/checkpoint.pt", n_epochs=20, lr=0.01):
     checkpt_epoch = 0
     if os.path.isfile(checkpt):
-        checkpoint = torch.load(checkpt)
+        checkpoint = torch.load(checkpt, weights_only=True)
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         checkpt_epoch = checkpoint['epoch']
@@ -64,29 +69,29 @@ def main():
                                     transform=transforms.Compose([transforms.ToTensor()]))
     
     if data_type == "MNIST":
+        img_shape = (28, 28)
         train_loader = torch.utils.data.DataLoader(dataset_mnist, batch_size=batch_size)
     elif data_type == "CIFAR10":
+        img_shape = (32, 32, 3)
         train_loader = torch.utils.data.DataLoader(dataset_cifar10, batch_size=batch_size)
         config.n_visible = 3072
         config.n_hidden  = 1024
 
-    model = RBM(n_visible=config.n_visible, n_hidden=config.n_hidden, k=config.k)
+    model = RBM(n_visible=config.n_visible, 
+                n_hidden=config.n_hidden, k=config.k)
     optimizer = optim.Adam(model.parameters(), learning_rate)
 
-    model = train_rmb(model, config, train_loader, optimizer, n_epochs=n_epochs, lr=learning_rate)
+    model = train_rmb(model, config, train_loader, optimizer, 
+                      n_epochs=n_epochs, lr=learning_rate)
     W = model.weight
 
     # test the generated image
     images = next(iter(train_loader))[0]
     _, v_gen = model(images.view(-1, config.n_visible))
 
-    if data_type == "MNIST":
-        plot(make_grid(W[:batch_size].view(batch_size, 1, 28, 28).data), 'output/filters.png')
-        plot(make_grid(v_gen.view(batch_size, 1, 28, 28).data), 'output/gen_img.png')
-
-    elif data_type == "CIFAR10":
-        plot(make_grid(W[:batch_size].view(batch_size, 3, 32, 32).data), 'output/filters.png')
-        plot(make_grid(v_gen.view(batch_size, 3, 32, 32).data), 'output/gen_img.png')
+    # plot the results
+    plot(W, img_shape, 'output/filters.png')
+    plot(v_gen, img_shape, 'output/gen_img.png')
 
 
 if __name__ == "__main__":
