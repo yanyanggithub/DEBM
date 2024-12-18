@@ -1,3 +1,4 @@
+import os.path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -14,7 +15,14 @@ def plot(X, filename):
     plt.savefig(filename)
 
 
-def train_rmb(model, config, train_loader, optimizer, n_epochs=20, lr=0.01):
+def train_rmb(model, config, train_loader, optimizer, 
+              checkpt="output/checkpoint.pt", n_epochs=20, lr=0.01):
+    checkpt_epoch = 0
+    if os.path.isfile(checkpt):
+        checkpoint = torch.load(checkpt)
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        checkpt_epoch = checkpoint['epoch']
     model.train()
 
     for epoch in range(n_epochs):
@@ -25,14 +33,22 @@ def train_rmb(model, config, train_loader, optimizer, n_epochs=20, lr=0.01):
             loss.backward()
             optimizer.step()
 
-        print('Epoch %d\t Loss=%.4f' % (epoch, loss))
+        epoch_ = epoch + checkpt_epoch
+        checkpoint = {
+            'epoch': epoch_,
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict()
+        }
+
+        torch.save(checkpoint, checkpt)
+        print('Epoch %d\t Loss=%.4f' % (epoch_, loss))
 
     return model
 
 
 def main():
     batch_size = 128 
-    n_epochs = 20 
+    n_epochs = 10 
     learning_rate = 5e-4 
     data_type = "MNIST"  # "CIFAR10"
     # data_type = "CIFAR10"  # "CIFAR10"
