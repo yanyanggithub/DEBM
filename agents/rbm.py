@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.autograd import Variable
 from torch.nn import functional as F
 
 
@@ -22,7 +21,7 @@ class RBM(nn.Module):
         self.k  = k
     
     def _sample(self, prob):
-        return F.relu(torch.sign(prob - Variable(torch.rand(prob.size()))))
+        return torch.distributions.Bernoulli(prob).sample()
 
     def _pass(self, v):
         prob_h = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
@@ -38,7 +37,8 @@ class RBM(nn.Module):
         h1 = torch.sum(F.softplus(v2), dim=1)
         return torch.mean(-v1 - h1)
     
-    def forward(self, v):
+    def forward(self, X):
+        v = self._sample(X)
         h = self._pass(v)
         for _ in range(self.k):
             v_reconstructed = self._reverse_pass(h)
