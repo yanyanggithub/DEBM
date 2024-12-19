@@ -32,10 +32,10 @@ class RBM(nn.Module):
         return self._sample(prob_v)
     
     def energy(self, v):
-        v1 = torch.matmul(v, self.v_bias.t())
-        v2 = F.linear(v, self.weight, self.h_bias)
-        h1 = torch.sum(F.softplus(v2), dim=1)
-        return torch.mean(-v1 - h1)
+        t1 = -torch.matmul(v, self.v_bias.t())
+        h_hat = F.linear(v, self.weight, self.h_bias)
+        t2 = -torch.sum(F.softplus(h_hat), dim=1)
+        return torch.mean(t1 + t2)
     
     def forward(self, X):
         v = self._sample(X)
