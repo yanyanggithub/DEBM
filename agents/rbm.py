@@ -29,7 +29,7 @@ class RBM(nn.Module):
     
     def _reverse_pass(self, h):
         prob_v = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
-        return self._sample(prob_v)
+        return prob_v
     
     def energy(self, v):
         t1 = -torch.matmul(v, self.v_bias.t())
@@ -37,8 +37,7 @@ class RBM(nn.Module):
         t2 = -torch.sum(F.softplus(h_hat), dim=1)
         return torch.mean(t1 + t2)
     
-    def forward(self, X):
-        v = self._sample(X)
+    def forward(self, v):
         h = self._pass(v)
         for _ in range(self.k):
             v_reconstructed = self._reverse_pass(h)
