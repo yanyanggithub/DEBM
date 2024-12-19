@@ -5,6 +5,8 @@ import torch.optim as optim
 from torchvision import datasets
 from torchvision.transforms import ToTensor
 from agents.rbm import RBM, RBMConfig
+from torch.nn import functional as F
+
 
 def plot(X, img_shape, filename):
     X = X.detach().numpy()

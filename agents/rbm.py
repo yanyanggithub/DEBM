@@ -21,15 +21,15 @@ class RBM(nn.Module):
         self.k  = k
     
     def _sample(self, prob):
-        return torch.distributions.Bernoulli(prob).sample()
+        return torch.bernoulli(prob)
 
     def _pass(self, v):
         prob_h = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
-        return self._sample(prob_h)
+        return prob_h, self._sample(prob_h)
     
     def _reverse_pass(self, h):
         prob_v = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
-        return prob_v
+        return prob_v, self._sample(prob_v)
     
     def energy(self, v):
         t1 = -torch.matmul(v, self.v_bias.t())
@@ -38,9 +38,9 @@ class RBM(nn.Module):
         return torch.mean(t1 + t2)
     
     def forward(self, v):
-        h = self._pass(v)
+        _, h_sample = self._pass(v)
         for _ in range(self.k):
-            v_reconstructed = self._reverse_pass(h)
-            h = self._pass(v_reconstructed)
+            v_reconstructed, v_sample = self._reverse_pass(h_sample)
+            _, h_sample = self._pass(v_sample)
         return v, v_reconstructed
 
