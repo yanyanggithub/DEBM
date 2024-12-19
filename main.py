@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
 from torchvision import datasets
-from torchvision.transforms import ToTensor
+from torchvision import transforms
 from agents.rbm import RBM, RBMConfig
 from torch.nn import functional as F
 
@@ -65,13 +65,16 @@ def main():
         config.n_visible = 784
         config.n_hidden  = 128
         train_dataset = datasets.MNIST('./data', train=True, download=True, 
-                                       transform=ToTensor())
+                                       transform=transforms.ToTensor())
     elif data_type == "CIFAR10":
         img_shape = (32, 32, 3)
         config.n_visible = 3072
         config.n_hidden  = 1024    
+        transform = transforms.Compose([transforms.ToTensor(), 
+                                        transforms.Normalize((0.5, 0.5, 0.5), 
+                                                             (0.5, 0.5, 0.5))])
         train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
-                                         transform=ToTensor())
+                                         transform=transform)
         
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=batch_size, 
