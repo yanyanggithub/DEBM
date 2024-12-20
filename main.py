@@ -21,7 +21,8 @@ def plot(X, img_shape, filename):
 
 
 def train_rmb(model, config, train_loader, optimizer, 
-              checkpt="output/checkpoint.pt", n_epochs=20, lr=0.01):
+              checkpt="output/checkpoint.pt", n_epochs=20, 
+              lr=0.01, batch_size=64):
     checkpt_epoch = 0
     if os.path.isfile(checkpt):
         checkpoint = torch.load(checkpt, weights_only=True)
@@ -32,11 +33,10 @@ def train_rmb(model, config, train_loader, optimizer,
 
     for epoch in range(n_epochs):
         for _, (data, _) in enumerate(train_loader):
-            v, v_reconstructed = model(data.view(-1, config.n_visible))
-            loss = model.energy(v) - model.energy(v_reconstructed)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            input = data.view(-1, config.n_visible)
+            loss = model.constrastive_divergence(input,
+                                                  lr=lr, 
+                                                  batch_size=batch_size)
 
         epoch_ = epoch + checkpt_epoch
         checkpoint = {
@@ -54,7 +54,7 @@ def train_rmb(model, config, train_loader, optimizer,
 def main():
     batch_size = 128 
     n_epochs = 10 
-    learning_rate = 5e-4 
+    learning_rate = 0.01
     data_type = "MNIST"  # "CIFAR10"
     # data_type = "CIFAR10"  # "CIFAR10"
 
@@ -84,8 +84,9 @@ def main():
                 n_hidden=config.n_hidden, k=config.k)
     optimizer = optim.Adam(model.parameters(), learning_rate)
 
-    model = train_rmb(model, config, train_loader, optimizer, 
-                      n_epochs=n_epochs, lr=learning_rate)
+    model = train_rmb(model, config, train_loader, 
+                      optimizer, n_epochs=n_epochs, 
+                      lr=learning_rate, batch_size=batch_size)
     W = model.weight
 
     # test the generated image

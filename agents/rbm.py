@@ -31,11 +31,28 @@ class RBM(nn.Module):
         prob_v = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
         return prob_v, self._sample(prob_v)
     
-    def energy(self, v):
-        t1 = -torch.matmul(v, self.v_bias.t())
-        h_hat = F.linear(v, self.weight, self.h_bias)
-        t2 = -torch.sum(F.softplus(h_hat), dim=1)
-        return torch.mean(t1 + t2)
+    def constrastive_divergence(self, X, lr=0.01, batch_size=64):
+        pos_h_prob, pos_h_sample = self._pass(X)
+        pos_associations = torch.matmul(pos_h_sample.t(), X)
+
+        h_sample = pos_h_sample
+        for _ in range(self.k):
+            v_recon_prob, _ = self._reverse_pass(h_sample)
+            h_prob, h_sample = self._pass(v_recon_prob)
+
+        neg_associations = torch.matmul(h_prob.t(), v_recon_prob)
+        gradient = pos_associations - neg_associations
+        gradient = gradient/batch_size
+
+        dv_bias = torch.sum(X - v_recon_prob, dim=0)/batch_size
+        dh_bias = torch.sum(pos_h_prob - h_prob, dim=0)/batch_size
+        with torch.no_grad():
+            self.weight += lr * gradient
+            self.v_bias += lr * dv_bias
+            self.h_bias += lr * dh_bias
+
+        loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=0))
+        return loss
     
     def forward(self, v):
         _, h_sample = self._pass(v)
