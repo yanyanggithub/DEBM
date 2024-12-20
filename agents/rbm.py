@@ -24,12 +24,12 @@ class RBM(nn.Module):
         return torch.bernoulli(prob)
 
     def _pass(self, v):
-        prob_h = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
-        return prob_h, self._sample(prob_h)
+        h_prob = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
+        return h_prob, self._sample(h_prob)
     
     def _reverse_pass(self, h):
-        prob_v = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
-        return prob_v, self._sample(prob_v)
+        v_prob = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
+        return v_prob, self._sample(v_prob)
     
     def constrastive_divergence(self, X, lr=0.01, batch_size=64):
         pos_h_prob, pos_h_sample = self._pass(X)
@@ -58,6 +58,6 @@ class RBM(nn.Module):
         _, h_sample = self._pass(v)
         for _ in range(self.k):
             v_reconstructed, _ = self._reverse_pass(h_sample)
-            _, h_sample = self._pass(v_reconstructed)
-        return v, v_reconstructed
+            h_prob, h_sample = self._pass(v_reconstructed)
+        return h_prob, v_reconstructed
 
