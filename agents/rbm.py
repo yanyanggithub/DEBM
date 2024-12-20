@@ -33,15 +33,15 @@ class RBM(nn.Module):
     
     def constrastive_divergence(self, X, lr=0.01, batch_size=64):
         pos_h_prob, pos_h_sample = self._pass(X)
-        pos_associations = torch.matmul(pos_h_sample.t(), X)
+        pos_gradient = torch.matmul(pos_h_sample.t(), X)
 
         h_sample = pos_h_sample
         for _ in range(self.k):
             v_recon_prob, _ = self._reverse_pass(h_sample)
             h_prob, h_sample = self._pass(v_recon_prob)
 
-        neg_associations = torch.matmul(h_prob.t(), v_recon_prob)
-        gradient = pos_associations - neg_associations
+        neg_gradient = torch.matmul(h_prob.t(), v_recon_prob)
+        gradient = pos_gradient - neg_gradient
         gradient = gradient/batch_size
 
         dv_bias = torch.sum(X - v_recon_prob, dim=0)/batch_size
@@ -57,7 +57,7 @@ class RBM(nn.Module):
     def forward(self, v):
         _, h_sample = self._pass(v)
         for _ in range(self.k):
-            v_reconstructed, v_sample = self._reverse_pass(h_sample)
-            _, h_sample = self._pass(v_sample)
+            v_reconstructed, _ = self._reverse_pass(h_sample)
+            _, h_sample = self._pass(v_reconstructed)
         return v, v_reconstructed
 

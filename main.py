@@ -53,7 +53,7 @@ def train_rmb(model, config, train_loader, optimizer,
 
 def main():
     batch_size = 128 
-    n_epochs = 10 
+    n_epochs = 100 
     learning_rate = 0.01
     data_type = "MNIST"  # "CIFAR10"
     # data_type = "CIFAR10"  # "CIFAR10"
