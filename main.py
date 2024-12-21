@@ -26,9 +26,13 @@ def train_rmb(model, train_loader,
         checkpoint = torch.load(checkpt, weights_only=True)
         model.load_state_dict(checkpoint['state_dict'])
         checkpt_epoch = checkpoint['epoch']
+        lr = checkpoint['lr']
     model.train()
 
     for epoch in range(n_epochs):
+        if epoch and epoch % 10 == 0:
+            # learning rate decay
+            lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             input = data.view(-1, model.n_visible)
             loss = model.fit(input, lr=lr, batch_size=batch_size)
@@ -37,6 +41,7 @@ def train_rmb(model, train_loader,
         checkpoint = {
             'epoch': epoch_,
             'state_dict': model.state_dict(),
+            'lr': lr
         }
 
         torch.save(checkpoint, checkpt)

@@ -27,7 +27,7 @@ class RBM(nn.Module):
     
     def constrastive_divergence(self, X, lr=0.01, batch_size=64):
         pos_h_prob, pos_h_sample = self._pass(X)
-        pos_gradient = torch.matmul(pos_h_sample.t(), X)
+        pos_gradient = torch.matmul(pos_h_prob.t(), X)
 
         h_sample = pos_h_sample
         for _ in range(self.k):
@@ -51,7 +51,7 @@ class RBM(nn.Module):
     def forward(self, v):
         _, h_sample = self._pass(v)
         for _ in range(self.k):
-            v_reconstructed, _ = self._reverse_pass(h_sample)
-            _, h_sample = self._pass(v_reconstructed)
-        return h_sample, v_reconstructed
+            _, v_sample = self._reverse_pass(h_sample)
+            h_prob, h_sample = self._pass(v_sample)
+        return h_prob, h_sample
 

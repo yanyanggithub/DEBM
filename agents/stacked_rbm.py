@@ -32,8 +32,8 @@ class StackedRBM(nn.Module):
     def forward(self, input):
         _, h_sample = self._pass(input)
         for _ in range(self.k):
-            v_reconstructed, _ = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_reconstructed)
+            v_reconstructed, v_sample = self._reverse_pass(h_sample)
+            h_prob, h_sample = self._pass(v_sample)
         return h_prob, v_reconstructed
     
     def fit(self, input, lr, batch_size):
