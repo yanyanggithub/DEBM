@@ -47,25 +47,13 @@ def train_rmb(model, train_loader,
 
 def main():
     batch_size = 128 
-    n_epochs = 100 
+    n_epochs = 100
     learning_rate = 0.01
     k = 1
-    data_type = "MNIST"  # "CIFAR10"
-    # data_type = "CIFAR10"  # "CIFAR10"
-
-    if data_type == "MNIST":
-        img_shape = (28, 28)
-        n_nodes=[784, 256, 128]
-        train_dataset = datasets.MNIST('./data', train=True, download=True, 
-                                       transform=transforms.ToTensor())
-    elif data_type == "CIFAR10":
-        img_shape = (32, 32, 3)
-        n_nodes=[3072, 1024, 512]
-        transform = transforms.Compose([transforms.ToTensor(), 
-                                        transforms.Normalize((0.5, 0.5, 0.5), 
-                                                             (0.5, 0.5, 0.5))])
-        train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
-                                         transform=transform)
+    img_shape = (28, 28)
+    n_nodes=[784, 256, 128]
+    train_dataset = datasets.MNIST('./data', train=True, download=True, 
+                                    transform=transforms.ToTensor())
         
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=batch_size, 
@@ -76,14 +64,17 @@ def main():
     model = train_rmb(model, train_loader, 
                       n_epochs=n_epochs, 
                       lr=learning_rate, batch_size=batch_size)
-    W = model.rbm_modules[0].weight
+    w0 = model.rbm_modules[0].weight
+    w1 = model.rbm_modules[1].weight
 
     # test the generated image
     images = next(iter(train_loader))[0]
     _, v_gen = model(images.view(-1, model.n_visible))
 
     # plot the results
-    plot(W, img_shape, 'output/filters.png')
+    plot(w0, img_shape, 'output/filters0.png')
+    plot(w1, [16, 16], 'output/filters1.png')
+
     plot(v_gen, img_shape, 'output/gen_img.png')
 
 

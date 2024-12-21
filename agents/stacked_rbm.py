@@ -35,10 +35,6 @@ class StackedRBM(nn.Module):
             v_reconstructed, _ = self._reverse_pass(h_sample)
             h_prob, h_sample = self._pass(v_reconstructed)
         return h_prob, v_reconstructed
-        # v = input
-        # for _, model in enumerate(self.rbm_modules):
-        #     prev, v = self.rbm_modules(v)
-        # return prev, v
     
     def fit(self, input, lr, batch_size):
         loss = 0

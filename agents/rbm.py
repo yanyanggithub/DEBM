@@ -3,12 +3,6 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class RBMConfig:
-    n_visible:int = 784 
-    n_hidden:int = 128 
-    k:int = 1
-
-
 class RBM(nn.Module):
     """
     Restricted Boltzmann Machine
@@ -58,6 +52,6 @@ class RBM(nn.Module):
         _, h_sample = self._pass(v)
         for _ in range(self.k):
             v_reconstructed, _ = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_reconstructed)
-        return h_prob, v_reconstructed
+            _, h_sample = self._pass(v_reconstructed)
+        return h_sample, v_reconstructed
 
