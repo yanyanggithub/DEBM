@@ -74,7 +74,7 @@ def main():
 
     # test the generated image
     images = next(iter(train_loader))[0]
-    _, v_gen = model(images.view(-1, model.n_visible))
+    v_gen, _ = model(images.view(-1, model.n_visible))
 
     # plot the results
     plot(w0, img_shape, 'output/filters0.png')

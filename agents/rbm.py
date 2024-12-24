@@ -18,10 +18,16 @@ class RBM(nn.Module):
         return torch.bernoulli(prob)
 
     def _pass(self, v):
+        """
+        from visible states to hidden states
+        """
         h_prob = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
         return h_prob, self._sample(h_prob)
     
     def _reverse_pass(self, h):
+        """
+        from hidden states to visible states
+        """
         v_prob = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
         return v_prob, self._sample(v_prob)
     
@@ -31,15 +37,15 @@ class RBM(nn.Module):
 
         h_sample = pos_h_sample
         for _ in range(self.k):
-            v_recon_prob, _ = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_recon_prob)
+            v_recon_prob, v_sample = self._reverse_pass(h_sample)
+            h_prob, h_sample = self._pass(v_sample)
 
-        neg_gradient = torch.matmul(h_prob.t(), v_recon_prob)
+        neg_gradient = torch.matmul(h_sample.t(), v_sample)
         gradient = pos_gradient - neg_gradient
         gradient = gradient/batch_size
 
-        dv_bias = torch.sum(X - v_recon_prob, dim=0)/batch_size
-        dh_bias = torch.sum(pos_h_prob - h_prob, dim=0)/batch_size
+        dv_bias = torch.sum(X - v_sample, dim=0)/batch_size
+        dh_bias = torch.sum(pos_h_prob - h_sample, dim=0)/batch_size
         with torch.no_grad():
             self.weight += lr * gradient
             self.v_bias += lr * dv_bias
@@ -49,9 +55,9 @@ class RBM(nn.Module):
         return loss
     
     def forward(self, v):
-        _, h_sample = self._pass(v)
+        h_prob, _ = self._pass(v)
         for _ in range(self.k):
-            _, v_sample = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_sample)
-        return h_prob, h_sample
+            v_prob, _ = self._reverse_pass(h_prob)
+            h_prob, _ = self._pass(v_prob)
+        return v_prob, h_prob
 

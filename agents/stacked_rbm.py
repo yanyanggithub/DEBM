@@ -30,11 +30,11 @@ class StackedRBM(nn.Module):
         return v_prob, v_sample
 
     def forward(self, input):
-        _, h_sample = self._pass(input)
+        h_prob, _ = self._pass(input)
         for _ in range(self.k):
-            v_reconstructed, v_sample = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_sample)
-        return h_prob, v_reconstructed
+            v_prob, _ = self._reverse_pass(h_prob)
+            h_prob, _ = self._pass(v_prob)
+        return v_prob, h_prob
     
     def fit(self, input, lr, batch_size):
         loss = 0
@@ -43,5 +43,5 @@ class StackedRBM(nn.Module):
             loss += model.constrastive_divergence(v,
                                                   lr=lr, 
                                                   batch_size=batch_size)
-            v, _ = model(v)
+            _, v = model(v)
         return loss
