@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 from torchvision import datasets
 from torchvision import transforms
-from agents.stacked_rbm import StackedRBM
+from modules.stacked_rbm import StackedRBM
 
 
 def plot(X, img_shape, filename):
@@ -45,7 +45,7 @@ def train_rmb(model, train_loader,
         }
 
         torch.save(checkpoint, checkpt)
-        print('Epoch %d\t Loss=%.4f' % (epoch_, loss))
+        print('Epoch %d Loss=%.4f' % (epoch_, loss))
 
     return model
 
