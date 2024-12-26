@@ -8,20 +8,22 @@ class Diffusion(nn.Module):
         self.size = size
         self.channels = channels
         self.timesteps = timesteps
+
+        # Noise schedule
         self.beta_min = 0.0001
         self.beta_max = 0.02
-
         self.betas = torch.linspace(self.beta_min, self.beta_max, timesteps)
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.alphas_cumprod_prev = torch.cat([torch.ones(1), self.alphas_cumprod[:-1]], dim=0)
+        self.alphas_cumprod_prev = torch.cat([torch.ones(1), 
+                                              self.alphas_cumprod[:-1]], dim=0)
         self.sqrt_alphas_bar = torch.sqrt(self.alphas_cumprod)
         self.sqrt_one_minus_alphas_bar = torch.sqrt(1.0 - self.alphas_cumprod)
         self.sqrt_recip_alphas_bar = torch.sqrt(1.0 / self.alphas_cumprod)
 
     def q_sample(self, x_0, t):
         """
-        Sample from q(x_t | x_0)
+        Forward diffusion, sample from q(x_t | x_0)
         """
         sqrt_alpha_bar_t = self.sqrt_alphas_bar[t]
         sqrt_one_minus_alpha_bar_t = self.sqrt_one_minus_alphas_bar[t]
@@ -30,7 +32,7 @@ class Diffusion(nn.Module):
 
     def p_losses(self, model, x_0, t):
         """
-        Compute the loss for the model.
+        Train the model to predict the noise added at a given timestep.
         """
         noise = torch.randn_like(x_0)
         x_t = self.q_sample(x_0, t)
@@ -39,7 +41,7 @@ class Diffusion(nn.Module):
 
     def p_sample(self, model, x_t, t):
         """
-        Sample x_(t-1) from p_theta(x_(t-1) | x_t)
+        Reverse diffusion, sample x_(t-1) from p_theta(x_(t-1) | x_t)
         """
         if t == 0:
             return x_t
@@ -50,7 +52,8 @@ class Diffusion(nn.Module):
 
     def p_mean_variance(self, model, x_t, t):
         """
-        Compute the mean and variance of p_theta(x_(t-1) | x_t)
+        Compute the mean and variance of the posterior distribution for the 
+        reverse diffusion process p_theta(x_(t-1) | x_t)
         """
         model_output = model(x_t, t)
         sqrt_one_minus_alphas_t = torch.sqrt(1.0 - self.alphas[t])

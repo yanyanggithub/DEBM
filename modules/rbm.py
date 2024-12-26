@@ -9,6 +9,8 @@ class RBM(nn.Module):
     """
     def __init__(self, n_visible, n_hidden, k):
         super().__init__()
+
+        # Initialize weights and biases
         self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.1)
         self.v_bias = nn.Parameter(torch.zeros(1, n_visible))
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
@@ -38,7 +40,7 @@ class RBM(nn.Module):
         h_sample = pos_h_sample
         for _ in range(self.k):
             v_recon_prob, v_sample = self._reverse_pass(h_sample)
-            h_prob, h_sample = self._pass(v_sample)
+            _, h_sample = self._pass(v_sample)
 
         neg_gradient = torch.matmul(h_sample.t(), v_sample)
         gradient = pos_gradient - neg_gradient

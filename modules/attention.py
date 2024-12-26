@@ -5,9 +5,9 @@ import torch.nn as nn
 class SelfAttention(nn.Module):
     def __init__(self, embed_dim, heads):
         super(SelfAttention, self).__init__()
-        self.embed_dim = embed_dim
-        self.heads = heads
-        self.head_dim = embed_dim // heads
+        self.embed_dim = embed_dim # Dimension of the input embeddings
+        self.heads = heads # Number of attention heads.
+        self.head_dim = embed_dim // heads # Dimension of each attention head
 
         assert (
             self.head_dim * heads == embed_dim
@@ -47,10 +47,10 @@ class SelfAttention(nn.Module):
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, key_value_dim, heads):
         super(CrossAttention, self).__init__()
-        self.query_dim = query_dim
-        self.key_value_dim = key_value_dim
-        self.heads = heads
-        self.head_dim = key_value_dim // heads
+        self.query_dim = query_dim # Dimension of the query embeddings
+        self.key_value_dim = key_value_dim # Dimension of the key and value embeddings
+        self.heads = heads # Number of attention heads
+        self.head_dim = key_value_dim // heads # Dimension of each attention head
 
         assert (
             self.head_dim * heads == key_value_dim

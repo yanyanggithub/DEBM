@@ -4,7 +4,11 @@ import torch.nn.functional as F
 
 
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
+    """
+    A block consisting of two convolutional layers with 
+    batch normalisation and ReLU activiation
+    (convolution => [BN] => ReLU) * 2
+    """
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -20,8 +24,11 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
+
 class Down(nn.Module):
-    """Downscaling with maxpool then double conv"""
+    """
+    A block for downsampling by max-pooling followed by a DoubleConv block
+    """
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -33,8 +40,10 @@ class Down(nn.Module):
     def forward(self, x):
         return self.maxpool_conv(x)
 
+
 class Up(nn.Module):
-    """Upscaling then double conv"""
+    """A block for upscaling followed by concatenation with the corresponding 
+    feature map from the encoder and a DoubleConv block"""
 
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
@@ -57,13 +66,18 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
+
 class OutConv(nn.Module):
+    """
+    A final 1x1 convolutional layer to produce the output segmentation map
+    """
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
         return self.conv(x)
+    
 
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=True):
