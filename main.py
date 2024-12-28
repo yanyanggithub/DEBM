@@ -39,7 +39,6 @@ def train_rmb(model, train_loader,
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             input = data.view(-1, model.n_visible)
-            input = ((input/255.0) * 2.0) - 1.0
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
 
