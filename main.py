@@ -13,6 +13,19 @@ if torch.cuda.is_available():
     device = "cuda"
     torch.cuda.set_device("cuda:0")
 
+dataset_name = 'mnist'
+
+if dataset_name == 'mnist': 
+    transform = transforms.Compose([transforms.ToTensor()])
+    train_dataset = datasets.MNIST('./data', train=True, download=True, 
+                                    transform=transform)
+elif dataset_name == 'cifar10':
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
+                                     transform=transform)  
+
 
 def plot(X, img_shape, filename):
     X = X.detach().numpy()
@@ -77,7 +90,7 @@ def train_diffusion(model, train_loader,
         loss_ = []
         for _, (data, _) in enumerate(tqdm(train_loader)):
             data = data.to(device)
-            input = ((data/255.0) * 2.0) - 1.0
+            # input = ((data/255.0) * 2.0) - 1.0
             input = input.moveaxis(3, 1)
 
             optimizer.zero_grad()
@@ -110,15 +123,13 @@ def main_diffusion():
     batch_size = 1024 
     n_epochs = 1
     learning_rate = 0.01
-    train_dataset = datasets.MNIST('./data', train=True, download=True, 
-                                    transform=transforms.ToTensor())
-        
-    train_loader = torch.utils.data.DataLoader(train_dataset, 
-                                               batch_size=batch_size, 
-                                               shuffle=True)
 
     model = Diffusion(784, 1, device=device)
     model.to(device)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, 
+                                            batch_size=batch_size, 
+                                            shuffle=True)
     model = train_diffusion(model, train_loader, 
                             n_epochs=n_epochs, 
                             lr=learning_rate)
@@ -137,13 +148,18 @@ def main_diffusion():
 
 def main_rbm():
     batch_size = 128 
-    n_epochs = 100
+    n_epochs = 10
     learning_rate = 0.01
     k = 1
-    img_shape = (28, 28)
-    n_nodes=[784, 256, 128]
-    train_dataset = datasets.MNIST('./data', train=True, download=True, 
-                                    transform=transforms.ToTensor())
+
+    if dataset_name == 'mnist':
+        img_shape = (28, 28)
+        filter1_shape = (16, 16)
+        n_nodes = [784, 256, 128]
+    elif dataset_name == 'cifar10':
+        img_shape = (32, 32, 3)
+        filter1_shape = (32, 32)
+        n_nodes = [3072, 1024, 784]
         
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=batch_size, 
@@ -161,10 +177,11 @@ def main_rbm():
     # test the generated image
     images = next(iter(train_loader))[0]
     v_gen, _ = model(images.view(-1, model.n_visible))
+    # v_gen = v_gen.clamp(0, 1)
 
     # plot the results
     plot(w0, img_shape, 'output/filters0.png')
-    plot(w1, [16, 16], 'output/filters1.png')
+    plot(w1, filter1_shape, 'output/filters1.png')
 
     plot(v_gen, img_shape, 'output/gen_img.png')
 
