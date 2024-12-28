@@ -39,6 +39,7 @@ def train_rmb(model, train_loader,
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             input = data.view(-1, model.n_visible)
+            input = ((input/255.0) * 2.0) - 1.0
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
 
@@ -100,7 +101,7 @@ def stack_samples(gen_samples, stack_dim):
 
 
 def main_diffusion():
-    batch_size = 512 
+    batch_size = 1024 
     n_epochs = 1
     learning_rate = 0.01
     train_dataset = datasets.MNIST('./data', train=True, download=True, 
@@ -122,6 +123,8 @@ def main_diffusion():
     sample_steps = torch.arange(model.timesteps-1, 0, -1)
     for t in sample_steps:
         x = model.denoise(x, t)
+    x = (x.clamp(-1, 1) + 1) / 2
+
     plot(x, [28, 28], 'output/diffusion.png')
 
 
