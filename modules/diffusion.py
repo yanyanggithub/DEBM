@@ -5,11 +5,11 @@ from .unet import *
 from .attention import SelfAttention
 
 
-def pos_encoding(t, n_channels, embed_size, device="cpu"):
+def pos_encoding(t, n_channels, embed_size):
     inv_freq = 1.0 / (
         10000
         ** (torch.arange(0, n_channels, 2).float() / n_channels)
-    ).to(device)
+    )
     pos_enc_a = torch.sin(t.repeat(1, n_channels // 2) * inv_freq)
     pos_enc_b = torch.cos(t.repeat(1, n_channels // 2) * inv_freq)
     pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
@@ -57,7 +57,7 @@ class Diffusion(nn.Module):
         inner loop of Algorithm 2 from (Ho et al., 2020).
         """       
         if t > 1:
-            z = torch.randn(x.shape).to(self.device)
+            z = torch.randn(x.shape)
         else:
             z = 0
         e_hat = self.forward(x, t.view(1, 1).repeat(x.shape[0], 1))
@@ -83,15 +83,15 @@ class Diffusion(nn.Module):
         unet + self attention
         """
         x1 = self.inc(x)
-        x2 = self.down1(x1) + pos_encoding(t, 128, 14, self.device)
-        x3 = self.down2(x2) + pos_encoding(t, 256, 7, self.device)
+        x2 = self.down1(x1) + pos_encoding(t, 128, 14).to(self.device)
+        x3 = self.down2(x2) + pos_encoding(t, 256, 7).to(self.device)
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + pos_encoding(t, 256, 3, self.device)
+        x4 = self.down3(x3) + pos_encoding(t, 256, 3).to(self.device)
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + pos_encoding(t, 128, 7, self.device)
+        x = self.up1(x4, x3) + pos_encoding(t, 128, 7).to(self.device)
         x = self.sa3(x)
-        x = self.up2(x, x2) + pos_encoding(t, 64, 14, self.device)
-        x = self.up3(x, x1) + pos_encoding(t, 64, 28, self.device)
+        x = self.up2(x, x2) + pos_encoding(t, 64, 14).to(self.device)
+        x = self.up3(x, x1) + pos_encoding(t, 64, 28).to(self.device)
         output = self.outc(x)
         return output
 

@@ -35,7 +35,6 @@ def train_rmb(model, train_loader,
         model.load_state_dict(checkpoint['state_dict'])
         checkpt_epoch = checkpoint['epoch']
         lr = checkpoint['lr']
-    model.to(device)
     model.train()
 
     for epoch in range(n_epochs):
@@ -71,7 +70,6 @@ def train_diffusion(model, train_loader,
         model.load_state_dict(checkpoint['state_dict'])
         checkpt_epoch = checkpoint['epoch']
         lr = checkpoint['lr']
-    model.to(device)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -120,6 +118,7 @@ def main_diffusion():
                                                shuffle=True)
 
     model = Diffusion(784, 1, device=device)
+    model.to(device)
     model = train_diffusion(model, train_loader, 
                             n_epochs=n_epochs, 
                             lr=learning_rate)
@@ -128,11 +127,11 @@ def main_diffusion():
 
     # image gen from noise
     x = torch.randn((sample_batch_size, 1, 28, 28))
+    model.to("cpu")
+    model.device = "cpu"
     sample_steps = torch.arange(model.timesteps-1, 0, -1)
     for t in sample_steps:
         x = model.denoise(x, t)
-    x = (x.clamp(-1, 1) + 1) / 2
-
     plot(x, [28, 28], 'output/diffusion.png')
 
 
@@ -151,6 +150,7 @@ def main_rbm():
                                                shuffle=True)
 
     model = StackedRBM(n_nodes, k)
+    model.to(device)
 
     model = train_rmb(model, train_loader, 
                       n_epochs=n_epochs, 
@@ -170,7 +170,7 @@ def main_rbm():
 
 
 if __name__ == "__main__":
-    # main_rbm()
-    main_diffusion()
+    main_rbm()
+    # main_diffusion()
 
 
