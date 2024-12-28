@@ -1,4 +1,4 @@
 .DS_Store
 data/
 output/
-agents/__pycache__/
+*/__pycache__/

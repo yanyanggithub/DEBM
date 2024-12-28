@@ -5,43 +5,15 @@ import torch.nn as nn
 class SelfAttention(nn.Module):
     def __init__(self, embed_dim, heads):
         super(SelfAttention, self).__init__()
-        self.embed_dim = embed_dim
-        self.heads = heads
-        self.head_dim = embed_dim // heads
-
-        assert (
-            self.head_dim * heads == embed_dim
-        ), "Embed dim must be divisible by heads"
-
-        self.wq = nn.Linear(embed_dim, embed_dim)
-        self.wk = nn.Linear(embed_dim, embed_dim)
-        self.wv = nn.Linear(embed_dim, embed_dim)
-        self.fc_out = nn.Linear(embed_dim, embed_dim)
+        self.attn = nn.MultiheadAttention(embed_dim, heads, batch_first=True)
 
     def forward(self, x):
-        batch_size, seq_len, _ = x.shape
-
-        # Split into multiple heads
-        q = self.wq(x).reshape(batch_size, seq_len, self.heads, self.head_dim)
-        k = self.wk(x).reshape(batch_size, seq_len, self.heads, self.head_dim)
-        v = self.wv(x).reshape(batch_size, seq_len, self.heads, self.head_dim)
-
-        # Calculate attention scores
-        attention_scores = torch.einsum("bhid,bhjd->bhij", q, k) / torch.sqrt(
-            torch.tensor(self.head_dim).float()
-        )
-
-        # Apply softmax to get attention weights
-        attention_weights = torch.softmax(attention_scores, dim=-1)
-
-        # Calculate weighted sum of values
-        out = torch.einsum("bhij,bhjd->bhid", attention_weights, v)
-
-        # Concatenate heads and apply final linear layer
-        out = out.reshape(batch_size, seq_len, self.embed_dim)
-        out = self.fc_out(out)
-
-        return out
+        batch_size, channels, h, w = x.shape
+        x = x.reshape(batch_size, channels, h*w)
+        x = x.transpose(1, 2)
+        x, _ = self.attn(x, x, x)
+        x = x.transpose(1, 2).reshape(batch_size, channels, h, w)
+        return x
 
 
 class CrossAttention(nn.Module):

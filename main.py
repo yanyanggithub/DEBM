@@ -4,6 +4,9 @@ import torch
 from torchvision import datasets
 from torchvision import transforms
 from modules.stacked_rbm import StackedRBM
+from modules.diffusion import Diffusion
+from tqdm import tqdm
+import numpy as np
 
 
 def plot(X, img_shape, filename):
@@ -19,7 +22,7 @@ def plot(X, img_shape, filename):
 
 
 def train_rmb(model, train_loader, 
-              checkpt="output/checkpoint.pt", n_epochs=10, 
+              checkpt="output/chk_rbm.pt", n_epochs=10, 
               lr=0.01, batch_size=64):
     checkpt_epoch = 0
     if os.path.isfile(checkpt):
@@ -30,12 +33,14 @@ def train_rmb(model, train_loader,
     model.train()
 
     for epoch in range(n_epochs):
+        loss_ = []
         if epoch and epoch % 10 == 0:
             # learning rate decay
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             input = data.view(-1, model.n_visible)
             loss = model.fit(input, lr=lr, batch_size=batch_size)
+            loss_.append(loss.item())
 
         epoch_ = epoch + checkpt_epoch
         checkpoint = {
@@ -45,12 +50,82 @@ def train_rmb(model, train_loader,
         }
 
         torch.save(checkpoint, checkpt)
-        print('Epoch %d Loss=%.4f' % (epoch_, loss))
+        print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
 
     return model
 
 
-def main():
+def train_diffusion(model, train_loader, 
+                   checkpt="output/chk_diffusion.pt", n_epochs=10, 
+                   lr=0.01):
+    checkpt_epoch = 0
+    if os.path.isfile(checkpt):
+        checkpoint = torch.load(checkpt, weights_only=True)
+        model.load_state_dict(checkpoint['state_dict'])
+        checkpt_epoch = checkpoint['epoch']
+        lr = checkpoint['lr']
+    model.train()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    for epoch in range(n_epochs):
+        loss_ = []
+        for _, (data, _) in enumerate(tqdm(train_loader)):
+            input = ((data/255.0) * 2.0) - 1.0
+            input = input.moveaxis(3, 1)
+
+            optimizer.zero_grad()
+            loss = model.fit(data)
+            loss_.append(loss.item())
+            loss.backward()
+            optimizer.step()
+
+        epoch_ = epoch + checkpt_epoch
+        checkpoint = {
+            'epoch': epoch_,
+            'state_dict': model.state_dict(),
+            'lr': lr
+        }
+
+        torch.save(checkpoint, checkpt)
+        print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
+
+    return model
+
+
+def stack_samples(gen_samples, stack_dim):
+    gen_samples = list(torch.split(gen_samples, 1, dim=1))
+    for i in range(len(gen_samples)):
+        gen_samples[i] = gen_samples[i].squeeze(1)
+    return torch.cat(gen_samples, dim=stack_dim)
+
+
+def main_diffusion():
+    batch_size = 512 
+    n_epochs = 1
+    learning_rate = 0.01
+    train_dataset = datasets.MNIST('./data', train=True, download=True, 
+                                    transform=transforms.ToTensor())
+        
+    train_loader = torch.utils.data.DataLoader(train_dataset, 
+                                               batch_size=batch_size, 
+                                               shuffle=True)
+
+    model = Diffusion(784, 1)
+    model = train_diffusion(model, train_loader, 
+                            n_epochs=n_epochs, 
+                            lr=learning_rate)
+
+    sample_batch_size = 25
+
+    # image gen from noise
+    x = torch.randn((sample_batch_size, 1, 28, 28))
+    sample_steps = torch.arange(model.timesteps-1, 0, -1)
+    for t in sample_steps:
+        x = model.denoise(x, t)
+    plot(x, [28, 28], 'output/diffusion.png')
+
+
+def main_rbm():
     batch_size = 128 
     n_epochs = 100
     learning_rate = 0.01
@@ -84,6 +159,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main_rbm()
+    # main_diffusion()
 
 
