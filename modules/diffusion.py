@@ -40,6 +40,7 @@ class Diffusion(nn.Module):
         self.sa2 = SelfAttention(256, 4)
         self.sa3 = SelfAttention(128, 8)
 
+
     def add_noise(self, x, t):
         """
         Forward diffusion process
@@ -114,3 +115,4 @@ class Diffusion(nn.Module):
         )
         # self.log("train/loss", loss)
         return loss
+
