@@ -5,11 +5,11 @@ from .unet import *
 from .attention import SelfAttention
 
 
-def pos_encoding(t, n_channels, embed_size):
+def pos_encoding(t, n_channels, embed_size, device="cpu"):
     inv_freq = 1.0 / (
         10000
         ** (torch.arange(0, n_channels, 2).float() / n_channels)
-    )
+    ).to(device)
     pos_enc_a = torch.sin(t.repeat(1, n_channels // 2) * inv_freq)
     pos_enc_b = torch.cos(t.repeat(1, n_channels // 2) * inv_freq)
     pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
@@ -17,7 +17,7 @@ def pos_encoding(t, n_channels, embed_size):
 
 
 class Diffusion(nn.Module):
-    def __init__(self, input_size, n_channels, timesteps=1000):
+    def __init__(self, input_size, n_channels, timesteps=1000, device="cpu"):
         super().__init__()
         self.input_size = input_size
         self.n_channels = n_channels
@@ -39,6 +39,7 @@ class Diffusion(nn.Module):
         self.sa1 = SelfAttention(256, 8)
         self.sa2 = SelfAttention(256, 4)
         self.sa3 = SelfAttention(128, 8)
+        self.device = device
 
 
     def add_noise(self, x, t):
@@ -47,7 +48,7 @@ class Diffusion(nn.Module):
         """
         sqrt_alpha_bar_t = self.sqrt_alpha_bars[t]
         sqrt_one_minus_alpha_bar_t = self.sqrt_one_minus_alpha_bars[t]
-        noise = torch.randn_like(x)
+        noise = torch.randn_like(x).to(self.device)
         return sqrt_alpha_bar_t * x + sqrt_one_minus_alpha_bar_t * noise
     
     @torch.no_grad()
@@ -56,7 +57,7 @@ class Diffusion(nn.Module):
         inner loop of Algorithm 2 from (Ho et al., 2020).
         """       
         if t > 1:
-            z = torch.randn(x.shape)
+            z = torch.randn(x.shape).to(self.device)
         else:
             z = 0
         e_hat = self.forward(x, t.view(1, 1).repeat(x.shape[0], 1))
@@ -82,15 +83,15 @@ class Diffusion(nn.Module):
         unet + self attention
         """
         x1 = self.inc(x)
-        x2 = self.down1(x1) + pos_encoding(t, 128, 14)
-        x3 = self.down2(x2) + pos_encoding(t, 256, 7)
+        x2 = self.down1(x1) + pos_encoding(t, 128, 14, self.device)
+        x3 = self.down2(x2) + pos_encoding(t, 256, 7, self.device)
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + pos_encoding(t, 256, 3)
+        x4 = self.down3(x3) + pos_encoding(t, 256, 3, self.device)
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + pos_encoding(t, 128, 7)
+        x = self.up1(x4, x3) + pos_encoding(t, 128, 7, self.device)
         x = self.sa3(x)
-        x = self.up2(x, x2) + pos_encoding(t, 64, 14)
-        x = self.up3(x, x1) + pos_encoding(t, 64, 28)
+        x = self.up2(x, x2) + pos_encoding(t, 64, 14, self.device)
+        x = self.up3(x, x1) + pos_encoding(t, 64, 28, self.device)
         output = self.outc(x)
         return output
 
@@ -98,9 +99,9 @@ class Diffusion(nn.Module):
         """
         Algorithm 1 from (Ho et al., 2020).
         """
-        ts = torch.randint(0, self.timesteps, [batch.shape[0]])
+        ts = torch.randint(0, self.timesteps, [batch.shape[0]]).to(self.device)
         noise_imgs = []
-        epsilons = torch.randn(batch.shape)
+        epsilons = torch.randn(batch.shape).to(self.device)
         for i in range(len(ts)):
             a_hat = self.alpha_bar(ts[i])
             noise_imgs.append(

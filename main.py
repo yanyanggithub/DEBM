@@ -8,6 +8,11 @@ from modules.diffusion import Diffusion
 from tqdm import tqdm
 import numpy as np
 
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+    torch.cuda.set_device("cuda:0")
+
 
 def plot(X, img_shape, filename):
     X = X.detach().numpy()
@@ -30,6 +35,7 @@ def train_rmb(model, train_loader,
         model.load_state_dict(checkpoint['state_dict'])
         checkpt_epoch = checkpoint['epoch']
         lr = checkpoint['lr']
+    model.to(device)
     model.train()
 
     for epoch in range(n_epochs):
@@ -38,6 +44,7 @@ def train_rmb(model, train_loader,
             # learning rate decay
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
+            data = data.to(device)
             input = data.view(-1, model.n_visible)
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
@@ -64,12 +71,14 @@ def train_diffusion(model, train_loader,
         model.load_state_dict(checkpoint['state_dict'])
         checkpt_epoch = checkpoint['epoch']
         lr = checkpoint['lr']
+    model.to(device)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     for epoch in range(n_epochs):
         loss_ = []
         for _, (data, _) in enumerate(tqdm(train_loader)):
+            data = data.to(device)
             input = ((data/255.0) * 2.0) - 1.0
             input = input.moveaxis(3, 1)
 
@@ -110,7 +119,7 @@ def main_diffusion():
                                                batch_size=batch_size, 
                                                shuffle=True)
 
-    model = Diffusion(784, 1)
+    model = Diffusion(784, 1, device=device)
     model = train_diffusion(model, train_loader, 
                             n_epochs=n_epochs, 
                             lr=learning_rate)
@@ -161,7 +170,7 @@ def main_rbm():
 
 
 if __name__ == "__main__":
-    main_rbm()
-    # main_diffusion()
+    # main_rbm()
+    main_diffusion()
 
 
