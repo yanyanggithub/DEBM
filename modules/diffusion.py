@@ -5,19 +5,21 @@ from .unet import *
 from .attention import SelfAttention
 
 
-def pos_encoding(t, n_channels, embed_size):
+def pos_encoding(t, n_channels, embed_size, device="cpu"):
     inv_freq = 1.0 / (
         10000
         ** (torch.arange(0, n_channels, 2).float() / n_channels)
-    )
-    pos_enc_a = torch.sin(t.repeat(1, n_channels // 2) * inv_freq)
-    pos_enc_b = torch.cos(t.repeat(1, n_channels // 2) * inv_freq)
+    ).to(device)
+    t_ = t.repeat(1, n_channels // 2)
+    t_ = t_.to(device)
+    pos_enc_a = torch.sin(t_ * inv_freq)
+    pos_enc_b = torch.cos(t_ * inv_freq)
     pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
     return pos_enc.view(-1, n_channels, 1, 1).repeat(1, 1, embed_size, embed_size)
 
 
 class Diffusion(nn.Module):
-    def __init__(self, input_size, n_channels, timesteps=1000, device="cpu"):
+    def __init__(self, input_size, n_channels, timesteps=1000, dataset="mnist", device="cpu"):
         super().__init__()
         self.input_size = input_size
         self.n_channels = n_channels
@@ -40,6 +42,11 @@ class Diffusion(nn.Module):
         self.sa2 = SelfAttention(256, 4)
         self.sa3 = SelfAttention(128, 8)
         self.device = device
+        self.dataset = dataset
+        if dataset == "mnist":
+            self.pos_emb = [14, 7, 3, 7, 14, 28]
+        elif dataset == "cifar10":
+            self.pos_emb = [16, 8, 4, 8, 16, 32]
 
 
     def add_noise(self, x, t):
@@ -83,15 +90,15 @@ class Diffusion(nn.Module):
         unet + self attention
         """
         x1 = self.inc(x)
-        x2 = self.down1(x1) + pos_encoding(t, 128, 14).to(self.device)
-        x3 = self.down2(x2) + pos_encoding(t, 256, 7).to(self.device)
+        x2 = self.down1(x1) + pos_encoding(t, 128, self.pos_emb[0], self.device)
+        x3 = self.down2(x2) + pos_encoding(t, 256, self.pos_emb[1], self.device)
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + pos_encoding(t, 256, 3).to(self.device)
+        x4 = self.down3(x3) + pos_encoding(t, 256, self.pos_emb[2], self.device)
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + pos_encoding(t, 128, 7).to(self.device)
+        x = self.up1(x4, x3) + pos_encoding(t, 128, self.pos_emb[3], self.device)
         x = self.sa3(x)
-        x = self.up2(x, x2) + pos_encoding(t, 64, 14).to(self.device)
-        x = self.up3(x, x1) + pos_encoding(t, 64, 28).to(self.device)
+        x = self.up2(x, x2) + pos_encoding(t, 64, self.pos_emb[4], self.device)
+        x = self.up3(x, x1) + pos_encoding(t, 64, self.pos_emb[5], self.device)
         output = self.outc(x)
         return output
 

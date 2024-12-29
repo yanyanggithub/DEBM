@@ -19,12 +19,14 @@ if dataset_name == 'mnist':
     transform = transforms.Compose([transforms.ToTensor()])
     train_dataset = datasets.MNIST('./data', train=True, download=True, 
                                     transform=transform)
+    img_shape = (28, 28)
 elif dataset_name == 'cifar10':
     transform = transforms.Compose(
         [transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
                                      transform=transform)  
+    img_shape = (32, 32, 3)
 
 
 def plot(X, img_shape, filename):
@@ -90,9 +92,6 @@ def train_diffusion(model, train_loader,
         loss_ = []
         for _, (data, _) in enumerate(tqdm(train_loader)):
             data = data.to(device)
-            # input = ((data/255.0) * 2.0) - 1.0
-            input = input.moveaxis(3, 1)
-
             optimizer.zero_grad()
             loss = model.fit(data)
             loss_.append(loss.item())
@@ -123,8 +122,14 @@ def main_diffusion():
     batch_size = 1024 
     n_epochs = 1
     learning_rate = 0.01
+    if dataset_name == 'mnist':
+        input_size = 784
+        n_channels = 1
+    elif dataset_name == 'cifar10':
+        input_size = 1024
+        n_channels = 3
 
-    model = Diffusion(784, 1, device=device)
+    model = Diffusion(input_size, n_channels, dataset=dataset_name, device=device)
     model.to(device)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, 
@@ -137,13 +142,16 @@ def main_diffusion():
     sample_batch_size = 25
 
     # image gen from noise
-    x = torch.randn((sample_batch_size, 1, 28, 28))
+    if dataset_name == 'mnist':
+        x = torch.randn((sample_batch_size, 1, 28, 28))
+    elif dataset_name == 'cifar10':
+        x = torch.randn((sample_batch_size, 3, 32, 32))
     model.to("cpu")
     model.device = "cpu"
     sample_steps = torch.arange(model.timesteps-1, 0, -1)
     for t in sample_steps:
         x = model.denoise(x, t)
-    plot(x, [28, 28], 'output/diffusion.png')
+    plot(x, img_shape, 'output/diffusion.png')
 
 
 def main_rbm():
@@ -153,11 +161,9 @@ def main_rbm():
     k = 1
 
     if dataset_name == 'mnist':
-        img_shape = (28, 28)
         filter1_shape = (16, 16)
         n_nodes = [784, 256, 128]
     elif dataset_name == 'cifar10':
-        img_shape = (32, 32, 3)
         filter1_shape = (32, 32)
         n_nodes = [3072, 1024, 784]
         
