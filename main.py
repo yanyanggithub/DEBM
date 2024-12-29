@@ -181,6 +181,8 @@ def main_rbm():
     w1 = model.rbm_modules[1].weight
 
     # test the generated image
+    model.to("cpu")
+    model.device = "cpu"
     images = next(iter(train_loader))[0]
     v_gen, _ = model(images.view(-1, model.n_visible))
     # v_gen = v_gen.clamp(0, 1)
