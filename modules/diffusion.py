@@ -64,10 +64,11 @@ class Diffusion(nn.Module):
         inner loop of Algorithm 2 from (Ho et al., 2020).
         """       
         if t > 1:
-            z = torch.randn(x.shape)
+            z = torch.randn(x.shape).to(self.device)
         else:
             z = 0
-        e_hat = self.forward(x, t.view(1, 1).repeat(x.shape[0], 1))
+        t_ = t.view(1, 1).repeat(x.shape[0], 1).to(self.device)
+        e_hat = self.forward(x, t_)
         pre_scale = 1 / math.sqrt(self.alpha(t))
         e_scale = (1 - self.alpha(t)) / math.sqrt(1 - self.alpha_bar(t))
         post_sigma = math.sqrt(self.beta(t)) * z

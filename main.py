@@ -15,26 +15,27 @@ if torch.cuda.is_available():
 
 dataset_name = 'mnist'
 
-if dataset_name == 'mnist': 
-    transform = transforms.Compose([transforms.ToTensor()])
+transform = transforms.Compose([transforms.ToTensor()])
+if dataset_name == 'mnist':     
     train_dataset = datasets.MNIST('./data', train=True, download=True, 
                                     transform=transform)
     img_shape = (28, 28)
 elif dataset_name == 'cifar10':
-    transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
                                      transform=transform)  
-    img_shape = (32, 32, 3)
+    img_shape = (3, 32, 32)
 
 
 def plot(X, img_shape, filename):
+    X = X.to("cpu")
     X = X.detach().numpy()
     fig = plt.figure(figsize=(5, 5))
     for i in range(25): 
         sub = fig.add_subplot(5, 5, i+1)
-        sub.imshow(X[i, :].reshape(img_shape), cmap=plt.cm.gray)
+        img = X[i, :].reshape(img_shape)
+        if len(img_shape) == 3:
+            img = np.moveaxis(img, 0, -1)
+        sub.imshow(img, cmap=plt.cm.gray)
     
     plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
     plt.tight_layout()
@@ -92,6 +93,11 @@ def train_diffusion(model, train_loader,
         loss_ = []
         for _, (data, _) in enumerate(tqdm(train_loader)):
             data = data.to(device)
+            if dataset_name == 'mnist':
+                # [batch_size, 1, 28, 28]
+                data.unsqueeze(3)
+            # normalise the data to range [-1, 1]
+            data = (data / 255) * 2 - 1
             optimizer.zero_grad()
             loss = model.fit(data)
             loss_.append(loss.item())
@@ -146,8 +152,7 @@ def main_diffusion():
         x = torch.randn((sample_batch_size, 1, 28, 28))
     elif dataset_name == 'cifar10':
         x = torch.randn((sample_batch_size, 3, 32, 32))
-    model.to("cpu")
-    model.device = "cpu"
+    x = x.to(device)
     sample_steps = torch.arange(model.timesteps-1, 0, -1)
     for t in sample_steps:
         x = model.denoise(x, t)
@@ -181,11 +186,9 @@ def main_rbm():
     w1 = model.rbm_modules[1].weight
 
     # test the generated image
-    model.to("cpu")
-    model.device = "cpu"
     images = next(iter(train_loader))[0]
+    images = images.to(device)
     v_gen, _ = model(images.view(-1, model.n_visible))
-    # v_gen = v_gen.clamp(0, 1)
 
     # plot the results
     plot(w0, img_shape, 'output/filters0.png')
