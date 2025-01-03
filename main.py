@@ -64,7 +64,7 @@ def train_rmb(model, train_loader,
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
 
-        epoch_ = epoch + checkpt_epoch
+        epoch_ = epoch + checkpt_epoch + 1
         checkpoint = {
             'epoch': epoch_,
             'state_dict': model.state_dict(),
@@ -104,7 +104,7 @@ def train_diffusion(model, train_loader,
             loss.backward()
             optimizer.step()
 
-        epoch_ = epoch + checkpt_epoch
+        epoch_ = epoch + checkpt_epoch + 1
         checkpoint = {
             'epoch': epoch_,
             'state_dict': model.state_dict(),
