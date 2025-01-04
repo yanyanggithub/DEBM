@@ -141,8 +141,7 @@ def main_diffusion():
     elif dataset_name == 'cifar10':
         n_channels = 3
 
-    model = Unet(n_channels, t_emb_dim=128, 
-                 dataset=dataset_name, device=device)
+    model = Unet(n_channels, t_emb_dim=128, device=device)
     model.to(device)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, 

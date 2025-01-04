@@ -5,7 +5,7 @@ from .attention import SelfAttention
 
 
 def get_time_embedding(timesteps, t_emb_dim):
-    assert t_emb_dim%2 == 0, "time embedding must be divisible by 2."
+    assert t_emb_dim % 2 == 0, "time embedding must be divisible by 2."
     
     factor = 2 * torch.arange(start = 0, 
                               end = t_emb_dim//2, 
@@ -111,7 +111,7 @@ class OutConv(nn.Module):
 
 class Unet(nn.Module):
     def __init__(self, n_channels, t_emb_dim=128, 
-                 dataset="mnist", device="cpu", bilinear=True):
+                 device="cpu", bilinear=True):
         super().__init__()
         self.n_channels = n_channels
         self.t_emb_dim = t_emb_dim
@@ -133,7 +133,6 @@ class Unet(nn.Module):
         self.sa2 = SelfAttention(256, 4)
         self.sa3 = SelfAttention(128, 8)
         self.device = device
-        self.dataset = dataset
 
     def forward(self, x, t):
         """
