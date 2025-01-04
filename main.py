@@ -5,6 +5,7 @@ from torchvision import datasets
 from torchvision import transforms
 from modules.stacked_rbm import StackedRBM
 from modules.diffusion import Diffusion
+from modules.unet import Unet
 from tqdm import tqdm
 import numpy as np
 
@@ -88,6 +89,8 @@ def train_diffusion(model, train_loader,
         lr = checkpoint['lr']
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = torch.nn.MSELoss()
+    diffusion = Diffusion(timesteps=1000, device=device)
 
     for epoch in range(n_epochs):
         loss_ = []
@@ -98,8 +101,13 @@ def train_diffusion(model, train_loader,
                 data.unsqueeze(3)
             # normalise the data to range [-1, 1]
             data = (data / 255) * 2 - 1
+            t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
+            t = t.to(device)
+            t_float = t.to(torch.float32).to(device)
+            noisy_data = diffusion.add_noise(data, t)
             optimizer.zero_grad()
-            loss = model.fit(data)
+            pred = model(noisy_data, t_float)
+            loss = loss_fn(pred, data)
             loss_.append(loss.item())
             loss.backward()
             optimizer.step()
@@ -126,16 +134,15 @@ def stack_samples(gen_samples, stack_dim):
 
 def main_diffusion():
     batch_size = 1024 
-    n_epochs = 1
-    learning_rate = 0.01
+    n_epochs = 10
+    learning_rate = 0.001
     if dataset_name == 'mnist':
-        input_size = 784
         n_channels = 1
     elif dataset_name == 'cifar10':
-        input_size = 1024
         n_channels = 3
 
-    model = Diffusion(input_size, n_channels, dataset=dataset_name, device=device)
+    model = Unet(n_channels, t_emb_dim=128, 
+                 dataset=dataset_name, device=device)
     model.to(device)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, 
@@ -153,10 +160,13 @@ def main_diffusion():
     elif dataset_name == 'cifar10':
         x = torch.randn((sample_batch_size, 3, 32, 32))
     x = x.to(device)
-    sample_steps = torch.arange(model.timesteps-1, 0, -1)
-    for t in sample_steps:
-        x = model.denoise(x, t)
-    plot(x, img_shape, 'output/diffusion.png')
+    diffusion = Diffusion(timesteps=1000, device=device)
+    for t in reversed(range(diffusion.timesteps)):
+        noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
+        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
+    xt = torch.clamp(xt, -1., 1.)
+    xt = (xt + 1) / 2    
+    plot(xt, img_shape, 'output/diffusion.png')
 
 
 def main_rbm():
