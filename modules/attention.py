@@ -3,13 +3,17 @@ import torch.nn as nn
 
 
 class SelfAttention(nn.Module):
-    def __init__(self, embed_dim, heads):
-        super(SelfAttention, self).__init__()
-        self.attn = nn.MultiheadAttention(embed_dim, heads, batch_first=True)
+    def __init__(self, n_channels, n_heads):
+        super().__init__()
+        self.attn = nn.MultiheadAttention(n_channels, 
+                                          n_heads, 
+                                          batch_first=True)
+        self.g_norm = nn.GroupNorm(8, n_channels)
 
     def forward(self, x):
         batch_size, channels, h, w = x.shape
         x = x.reshape(batch_size, channels, h*w)
+        x = self.g_norm(x)
         x = x.transpose(1, 2)
         x, _ = self.attn(x, x, x)
         x = x.transpose(1, 2).reshape(batch_size, channels, h, w)

@@ -63,7 +63,7 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     """
-    Downsample block by max-pooling followed by a DoubleConv block
+    Downsample block
     """
 
     def __init__(self, in_channels, out_channels):
@@ -78,6 +78,9 @@ class Down(nn.Module):
     
 
 class Up(nn.Module):
+    """
+    Upsample block
+    """    
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
 
