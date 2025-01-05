@@ -135,7 +135,7 @@ def stack_samples(gen_samples, stack_dim):
 def main_diffusion():
     batch_size = 1024 
     n_epochs = 10
-    learning_rate = 0.001
+    learning_rate = 1e-4
     if dataset_name == 'mnist':
         n_channels = 1
     elif dataset_name == 'cifar10':
