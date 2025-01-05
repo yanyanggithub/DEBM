@@ -61,6 +61,8 @@ def train_rmb(model, train_loader,
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             data = data.to(device)
+            if dataset_name == 'cifar10':
+                data = data / 255
             input = data.view(-1, model.n_visible)
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
@@ -99,8 +101,8 @@ def train_diffusion(model, train_loader,
             if dataset_name == 'mnist':
                 # [batch_size, 1, 28, 28]
                 data.unsqueeze(3)
-            # normalise the data to range [-1, 1]
-            data = (data / 255) * 2 - 1
+            elif dataset_name == 'cifar10':
+                data = data / 255
             t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
             t = t.to(device)
             t_float = t.to(torch.float32).to(device)
@@ -162,9 +164,7 @@ def main_diffusion():
     diffusion = Diffusion(timesteps=1000, device=device)
     for t in reversed(range(diffusion.timesteps)):
         noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
-        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
-    xt = torch.clamp(xt, -1., 1.)
-    xt = (xt + 1) / 2    
+        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device)) 
     plot(xt, img_shape, 'output/diffusion.png')
 
 
