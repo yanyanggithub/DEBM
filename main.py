@@ -61,8 +61,6 @@ def train_rmb(model, train_loader,
             lr = lr * 0.9
         for _, (data, _) in enumerate(train_loader):
             data = data.to(device)
-            if dataset_name == 'cifar10':
-                data = data / 255
             input = data.view(-1, model.n_visible)
             loss = model.fit(input, lr=lr, batch_size=batch_size)
             loss_.append(loss.item())
