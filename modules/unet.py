@@ -39,6 +39,28 @@ class TimeEmbedding(nn.Module):
         return self.te_block(x)
     
 
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, num_layers=2):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.num_layers = num_layers
+        self.res_block = nn.ModuleList([
+            nn.Conv2d(
+                in_channels if i==0 else out_channels, 
+                out_channels, 
+                kernel_size=1
+            ) for i in range(num_layers)
+        ])
+
+    def forward(self, x):
+        orig = x
+        for i in range(self.num_layers):
+            x = self.res_block[i](x)
+        x += orig
+        return x
+    
+
 class DoubleConv(nn.Module):
     """
     (convolution => [BN] => ReLU) * 2
@@ -53,6 +75,7 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, 
                       padding=1, bias=False),
+            ResBlock(out_channels, out_channels),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
@@ -63,7 +86,7 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     """
-    Downsample block
+    Downsample block + DoubleConv
     """
 
     def __init__(self, in_channels, out_channels):
@@ -79,7 +102,7 @@ class Down(nn.Module):
 
 class Up(nn.Module):
     """
-    Upsample block
+    Upsample block + DoubleConv
     """    
     def __init__(self, in_channels, out_channels):
         super().__init__()
