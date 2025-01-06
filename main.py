@@ -101,6 +101,7 @@ def train_diffusion(model, train_loader,
                 data.unsqueeze(3)
             elif dataset_name == 'cifar10':
                 data = data / 255
+            data = data * 2 - 1
             t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
             t = t.to(device)
             t_float = t.to(torch.float32).to(device)
@@ -162,7 +163,8 @@ def main_diffusion():
     diffusion = Diffusion(timesteps=1000, device=device)
     for t in reversed(range(diffusion.timesteps)):
         noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
-        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device)) 
+        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
+    xt = (torch.clamp(xt, -1., 1.) + 1) / 2 
     plot(xt, img_shape, 'output/diffusion.png')
 
 

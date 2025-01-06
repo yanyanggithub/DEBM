@@ -81,15 +81,10 @@ class Up(nn.Module):
     """
     Upsample block
     """    
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-
-        # if bilinear, use the given upsampling method, else transposed conv
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
-
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', 
+                              align_corners=True)
         self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -113,29 +108,37 @@ class OutConv(nn.Module):
 
 
 class Unet(nn.Module):
-    def __init__(self, n_channels, t_emb_dim=128, 
-                 device="cpu", bilinear=True):
+    def __init__(self, n_channels, t_emb_dim=128, device="cpu"):
         super().__init__()
         self.n_channels = n_channels
         self.t_emb_dim = t_emb_dim
         self.inc = DoubleConv(n_channels, 64)
         self.down1 = Down(64, 128)
-        self.time_emb1 = TimeEmbedding(128, t_emb_dim)
         self.down2 = Down(128, 256)
-        self.time_emb2 = TimeEmbedding(256, t_emb_dim)
         self.down3 = Down(256, 256)
-        self.time_emb3 = TimeEmbedding(256, t_emb_dim)
-        self.up1 = Up(512, 128, bilinear)
-        self.time_emb4 = TimeEmbedding(128, t_emb_dim)
-        self.up2 = Up(256, 64, bilinear)
-        self.time_emb5 = TimeEmbedding(64, t_emb_dim)
-        self.up3 = Up(128, 64, bilinear)
-        self.time_emb6 = TimeEmbedding(64, t_emb_dim)
-        self.outc = OutConv(64, n_channels)
+        self.up1 = Up(512, 128)
+        self.up2 = Up(256, 64)
+        self.up3 = Up(128, 64)
         self.sa1 = SelfAttention(256, 8)
         self.sa2 = SelfAttention(256, 4)
         self.sa3 = SelfAttention(128, 8)
-        self.device = device
+        self.time_emb_down1 = TimeEmbedding(128, t_emb_dim)       
+        self.time_emb_down2 = TimeEmbedding(256, t_emb_dim)
+        self.time_emb_down3 = TimeEmbedding(256, t_emb_dim)
+        self.time_emb_up1 = TimeEmbedding(128, t_emb_dim)
+        self.time_emb_up2 = TimeEmbedding(64, t_emb_dim)
+        self.time_emb_up3 = TimeEmbedding(64, t_emb_dim)
+        self.outc = OutConv(64, n_channels)
+        self.device = device    
+        self.apply(self._init_weights)
+    
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, x, t):
         """
@@ -143,14 +146,14 @@ class Unet(nn.Module):
         """
         t_emb = get_time_embedding(t, self.t_emb_dim)
         x1 = self.inc(x)
-        x2 = self.down1(x1) + self.time_emb1(t_emb)[:, :, None, None]
-        x3 = self.down2(x2) + self.time_emb2(t_emb)[:, :, None, None]
+        x2 = self.down1(x1) + self.time_emb_down1(t_emb)[:, :, None, None]
+        x3 = self.down2(x2) + self.time_emb_down2(t_emb)[:, :, None, None]
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + self.time_emb3(t_emb)[:, :, None, None]
+        x4 = self.down3(x3) + self.time_emb_down3(t_emb)[:, :, None, None]
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + self.time_emb4(t_emb)[:, :, None, None]
+        x = self.up1(x4, x3) + self.time_emb_up1(t_emb)[:, :, None, None]
         x = self.sa3(x)
-        x = self.up2(x, x2) + self.time_emb5(t_emb)[:, :, None, None]
-        x = self.up3(x, x1) + self.time_emb6(t_emb)[:, :, None, None]
+        x = self.up2(x, x2) + self.time_emb_up2(t_emb)[:, :, None, None]
+        x = self.up3(x, x1) + self.time_emb_up3(t_emb)[:, :, None, None]
         output = self.outc(x)
         return output
