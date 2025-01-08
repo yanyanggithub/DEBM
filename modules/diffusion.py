@@ -25,13 +25,12 @@ class Diffusion:
         self.sqrt_alpha_bars = torch.sqrt(self.alpha_bars)
         self.sqrt_one_minus_alpha_bars = torch.sqrt(1 - self.alpha_bars)        
 
-    def add_noise(self, x, t):
+    def add_noise(self, x, noise, t):
         """
         Forward diffusion process
         """
         sqrt_alpha_bar_t = self.sqrt_alpha_bars[t]
         sqrt_one_minus_alpha_bar_t = self.sqrt_one_minus_alpha_bars[t]
-        noise = torch.randn_like(x).to(self.device)
         # Broadcast to multiply with the original image.
         sqrt_alpha_bar_t = sqrt_alpha_bar_t[:, None, None, None]
         sqrt_one_minus_alpha_bar_t = sqrt_one_minus_alpha_bar_t[:, None, None, None]
