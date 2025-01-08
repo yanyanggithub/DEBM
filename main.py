@@ -136,7 +136,7 @@ def stack_samples(gen_samples, stack_dim):
 def main_diffusion():
     batch_size = 1024 
     n_epochs = 10
-    learning_rate = 1e-4
+    learning_rate = 1e-3
     if dataset_name == 'mnist':
         n_channels = 1
     elif dataset_name == 'cifar10':
@@ -161,11 +161,11 @@ def main_diffusion():
         x = torch.randn((sample_batch_size, 3, 32, 32))
     x = x.to(device)
     diffusion = Diffusion(timesteps=1000, device=device)
-    for t in reversed(range(diffusion.timesteps)):
-        noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
-        xt, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
-    xt = (torch.clamp(xt, -1., 1.) + 1) / 2 
-    plot(xt, img_shape, 'output/diffusion.png')
+    with torch.no_grad():
+        for t in reversed(range(diffusion.timesteps)):
+            noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
+            x, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
+    plot(x, img_shape, 'output/diffusion.png')
 
 
 def main_rbm():
