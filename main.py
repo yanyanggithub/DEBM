@@ -8,13 +8,24 @@ from modules.diffusion import Diffusion
 from modules.unet import Unet
 from tqdm import tqdm
 import numpy as np
+from ast import literal_eval
+import sys
+
+dataset_name = 'mnist'  # 'mnist' or 'cifar10'
+model_name = 'rbm' # 'rbm' or 'diffusion'
+batch_size = 128
+n_epochs = 100
+learning_rate = 1e-2
+data_dir = './data'
+output_dir = './output'
+
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 device = "cpu"
 if torch.cuda.is_available():
     device = "cuda"
     torch.cuda.set_device("cuda:0")
-
-dataset_name = 'mnist'
 
 transform = transforms.Compose([transforms.ToTensor()])
 if dataset_name == 'mnist':     
@@ -79,7 +90,7 @@ def train_rmb(model, train_loader,
 
 
 def train_diffusion(model, train_loader, 
-                   checkpt="output/chk_diffusion.pt", n_epochs=10, 
+                   checkpt="./output/chk_diffusion.pt", n_epochs=10, 
                    lr=0.01):
     checkpt_epoch = 0
     if os.path.isfile(checkpt):
@@ -134,9 +145,6 @@ def stack_samples(gen_samples, stack_dim):
 
 
 def main_diffusion():
-    batch_size = 1024 
-    n_epochs = 10
-    learning_rate = 1e-3
     if dataset_name == 'mnist':
         n_channels = 1
     elif dataset_name == 'cifar10':
@@ -165,13 +173,10 @@ def main_diffusion():
         for t in reversed(range(diffusion.timesteps)):
             noise_pred = model(x, torch.as_tensor(t).unsqueeze(0).to(device))
             x, _ = diffusion.denoise(x, noise_pred, torch.as_tensor(t).to(device))
-    plot(x, img_shape, 'output/diffusion.png')
+    plot(x, img_shape, './output/diffusion.png')
 
 
 def main_rbm():
-    batch_size = 128 
-    n_epochs = 10
-    learning_rate = 0.01
     k = 1
 
     if dataset_name == 'mnist':
@@ -200,14 +205,37 @@ def main_rbm():
     v_gen, _ = model(images.view(-1, model.n_visible))
 
     # plot the results
-    plot(w0, img_shape, 'output/filters0.png')
-    plot(w1, filter1_shape, 'output/filters1.png')
+    plot(w0, img_shape, './output/rbm_filters0.png')
+    plot(w1, filter1_shape, './output/rbm_filters1.png')
 
-    plot(v_gen, img_shape, 'output/gen_img.png')
+    plot(v_gen, img_shape, 'output/rbm_reconstructed.png')
+
+
+def parse_args():
+    for arg in sys.argv[1:]:
+        assert arg.startswith('--')
+        key, val = arg.split('=')
+        key = key[2:]
+        if key in globals():
+            try:
+                # attempt to eval it it (e.g. if bool, number, or etc)
+                attempt = literal_eval(val)
+            except (SyntaxError, ValueError):
+                # if that goes wrong, just use the string
+                attempt = val
+            # ensure the types match ok
+            assert type(attempt) == type(globals()[key])
+            print(f"Overriding: {key} = {attempt}")
+            globals()[key] = attempt
+        else:
+            raise ValueError(f"Unknown config key: {key}")
 
 
 if __name__ == "__main__":
-    main_rbm()
-    # main_diffusion()
+    parse_args()
+    if model_name == 'rbm':
+        main_rbm()
+    elif model_name == 'diffusion':
+        main_diffusion()
 
 
