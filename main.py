@@ -1,3 +1,12 @@
+"""
+This training script is designed for a poor person with only a laptop to train 
+RBM and Diffusion models on MNIST or CIFAR10 datasets.
+
+You can specify in command line:
+python3 main.py --model_name=rbm --dataset_name=mnist --n_epochs=100
+
+"""
+
 import os.path
 import matplotlib.pyplot as plt
 import torch

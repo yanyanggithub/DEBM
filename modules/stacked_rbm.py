@@ -40,7 +40,7 @@ class StackedRBM(nn.Module):
         loss = 0
         v = input
         for _, model in enumerate(self.rbm_modules):
-            loss += model.constrastive_divergence(v,
+            loss += model.contrastive_divergence(v,
                                                   lr=lr, 
                                                   batch_size=batch_size)
             _, v = model(v)

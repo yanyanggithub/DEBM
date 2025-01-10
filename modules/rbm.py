@@ -33,7 +33,7 @@ class RBM(nn.Module):
         v_prob = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
         return v_prob, self._sample(v_prob)
     
-    def constrastive_divergence(self, X, lr=0.01, batch_size=64):
+    def contrastive_divergence(self, X, lr=0.01, batch_size=64):
         pos_h_prob, pos_h_sample = self._pass(X)
         pos_gradient = torch.matmul(pos_h_prob.t(), X)
 
