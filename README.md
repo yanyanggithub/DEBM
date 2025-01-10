@@ -1,5 +1,5 @@
 # Deep Energy-Based Models (DEBM)
-Work in progress... It is a repository of testing ideas on energy based models (e.g. Boltzmann machines) to discover and learn patterns in data.
+Work in progress... It is a repository to test ideas on energy modeling for image generation (e.g. Boltzmann machines, denoising diffusion).  
 
 ---
 At the moment, this repo has got only some basic stuff as the following...
