@@ -64,7 +64,7 @@ def plot(X, img_shape, filename):
 
 
 def train_rmb(model, train_loader, 
-              checkpt="output/chk_rbm.pt", n_epochs=10, 
+              checkpt="./output/chk_rbm.pt", n_epochs=10, 
               lr=0.01, batch_size=64):
     checkpt_epoch = 0
     if os.path.isfile(checkpt):
@@ -153,7 +153,7 @@ def stack_samples(gen_samples, stack_dim):
     return torch.cat(gen_samples, dim=stack_dim)
 
 
-def main_diffusion():
+def main_diffusion(checkpt_file):
     if dataset_name == 'mnist':
         n_channels = 1
     elif dataset_name == 'cifar10':
@@ -166,6 +166,7 @@ def main_diffusion():
                                             batch_size=batch_size, 
                                             shuffle=True)
     model = train_diffusion(model, train_loader, 
+                            checkpt=checkpt_file,
                             n_epochs=n_epochs, 
                             lr=learning_rate)
 
@@ -185,7 +186,7 @@ def main_diffusion():
     plot(x, img_shape, './output/diffusion.png')
 
 
-def main_rbm():
+def main_rbm(checkpt_file):
     k = 1
 
     if dataset_name == 'mnist':
@@ -203,6 +204,7 @@ def main_rbm():
     model.to(device)
 
     model = train_rmb(model, train_loader, 
+                      checkpt=checkpt_file,
                       n_epochs=n_epochs, 
                       lr=learning_rate, batch_size=batch_size)
     w0 = model.rbm_modules[0].weight
@@ -242,9 +244,11 @@ def parse_args():
 
 if __name__ == "__main__":
     parse_args()
+    checkpt = 'chk_' + model_name + '_' + dataset_name + '.pt'
+    checkpt_file = os.path.join(output_dir, checkpt)
     if model_name == 'rbm':
-        main_rbm()
+        main_rbm(checkpt_file)
     elif model_name == 'diffusion':
-        main_diffusion()
+        main_diffusion(checkpt_file)
 
 
