@@ -4,7 +4,7 @@ Work in progress... It is a repository to test ideas on energy modeling for imag
 ---
 At the moment, this repo has got only some basic stuff as the following...
 
-The training script is designed for a poor person with a laptop GPU (or no GPU) to train RBM and Diffusion models on MNIST or CIFAR10 datasets.
+The training script is designed for a poor person with a modest laptop GPU (or no GPU) to train stacked Restricted Boltzmann machines (RBM) and Diffusion models on MNIST or CIFAR10 datasets.
 
 You can specify in command line:
 ```
