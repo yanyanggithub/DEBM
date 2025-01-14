@@ -36,16 +36,6 @@ if torch.cuda.is_available():
     device = "cuda"
     torch.cuda.set_device("cuda:0")
 
-transform = transforms.Compose([transforms.ToTensor()])
-if dataset_name == 'mnist':     
-    train_dataset = datasets.MNIST('./data', train=True, download=True, 
-                                    transform=transform)
-    img_shape = (28, 28)
-elif dataset_name == 'cifar10':
-    train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
-                                     transform=transform)  
-    img_shape = (3, 32, 32)
-
 
 def plot(X, img_shape, filename):
     X = X.to("cpu")
@@ -153,7 +143,7 @@ def stack_samples(gen_samples, stack_dim):
     return torch.cat(gen_samples, dim=stack_dim)
 
 
-def main_diffusion(checkpt_file):
+def main_diffusion(train_dataset, checkpt_file, img_shape):
     if dataset_name == 'mnist':
         n_channels = 1
     elif dataset_name == 'cifar10':
@@ -186,7 +176,7 @@ def main_diffusion(checkpt_file):
     plot(x, img_shape, './output/diffusion.png')
 
 
-def main_rbm(checkpt_file):
+def main_rbm(train_dataset, checkpt_file, img_shape):
     k = 1
 
     if dataset_name == 'mnist':
@@ -246,9 +236,20 @@ if __name__ == "__main__":
     parse_args()
     checkpt = 'chk_' + model_name + '_' + dataset_name + '.pt'
     checkpt_file = os.path.join(output_dir, checkpt)
+    
+    transform = transforms.Compose([transforms.ToTensor()])
+    if dataset_name == 'mnist':     
+        train_dataset = datasets.MNIST('./data', train=True, download=True, 
+                                        transform=transform)
+        img_shape = (28, 28)
+    elif dataset_name == 'cifar10':
+        train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
+                                        transform=transform)  
+        img_shape = (3, 32, 32)
+
     if model_name == 'rbm':
-        main_rbm(checkpt_file)
+        main_rbm(train_dataset, checkpt_file, img_shape)
     elif model_name == 'diffusion':
-        main_diffusion(checkpt_file)
+        main_diffusion(train_dataset, checkpt_file, img_shape)
 
 
