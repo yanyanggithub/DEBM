@@ -109,9 +109,7 @@ def train_diffusion(model, train_loader,
             if dataset_name == 'mnist':
                 # [batch_size, 1, 28, 28]
                 data.unsqueeze(3)
-            elif dataset_name == 'cifar10':
-                data = data / 255
-            data = data * 2 - 1
+                data = data * 2 - 1
             t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
             t = t.to(device)
             noise = torch.randn_like(data).to(device)
@@ -236,13 +234,17 @@ if __name__ == "__main__":
     parse_args()
     checkpt = 'chk_' + model_name + '_' + dataset_name + '.pt'
     checkpt_file = os.path.join(output_dir, checkpt)
-    
-    transform = transforms.Compose([transforms.ToTensor()])
-    if dataset_name == 'mnist':     
+        
+    if dataset_name == 'mnist':
+        transform = transforms.Compose([transforms.ToTensor()])  
         train_dataset = datasets.MNIST('./data', train=True, download=True, 
                                         transform=transform)
         img_shape = (28, 28)
     elif dataset_name == 'cifar10':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), 
+                                 (0.2470, 0.2435, 0.2616))])
         train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
                                         transform=transform)  
         img_shape = (3, 32, 32)
