@@ -18,7 +18,7 @@ import sys
 from utils import plot, load_dataset, Trainer
 
 dataset_name = 'mnist'  # 'mnist' or 'cifar10'
-model_name = 'rbm' # 'rbm' or 'diffusion'
+model_name = 'rbm' # 'rbm' or 'diffusion' or 'fm'
 batch_size = 128
 n_epochs = 100
 learning_rate = 1e-2
@@ -34,6 +34,35 @@ if torch.cuda.is_available():
     torch.cuda.set_device("cuda:0")
 
 
+# flow matching
+def main_fm(train_dataset, checkpt_file, img_shape):
+    if dataset_name == 'mnist':
+        n_channels = 1
+    elif dataset_name == 'cifar10':
+        n_channels = 3
+
+    model = Unet(n_channels, t_emb_dim=128, device=device)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, 
+                                            batch_size=batch_size, 
+                                            shuffle=True)
+    trainer = Trainer(model, dataset_name, checkpt=checkpt_file, n_epochs=n_epochs, 
+                      lr=learning_rate, batch_size=batch_size, device=device)
+    model = trainer.train_fm(train_loader)
+    sample_batch_size = 25
+
+    # image gen from noise
+    if dataset_name == 'mnist':
+        x = torch.randn((sample_batch_size, 1, 28, 28))
+    elif dataset_name == 'cifar10':
+        x = torch.randn((sample_batch_size, 3, 32, 32))
+    x = x.to(device)
+    with torch.no_grad():
+        x = model(x, torch.as_tensor(0).unsqueeze(0).to(device))
+    plot(x, img_shape, './output/fm_gen.png')
+
+
+# denoising diffusion
 def main_diffusion(train_dataset, checkpt_file, img_shape):
     if dataset_name == 'mnist':
         n_channels = 1
@@ -64,6 +93,7 @@ def main_diffusion(train_dataset, checkpt_file, img_shape):
     plot(x, img_shape, './output/diffusion.png')
 
 
+# restricted boltzmann machine
 def main_rbm(train_dataset, checkpt_file, img_shape):
     k = 1
     if dataset_name == 'mnist':
@@ -130,5 +160,7 @@ if __name__ == "__main__":
         main_rbm(train_dataset, checkpt_file, img_shape)
     elif model_name == 'diffusion':
         main_diffusion(train_dataset, checkpt_file, img_shape)
+    elif model_name == 'fm':
+        main_fm(train_dataset, checkpt_file, img_shape)
 
 

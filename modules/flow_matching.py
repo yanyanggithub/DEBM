@@ -10,7 +10,7 @@ class FlowMatching:
         """
         flow interpolation at time t
         """
-        return t*x1 + (1-t)*x0
+        return t[:, None, None, None] * x1 + (1 - t[:, None, None, None]) * x0
     
     def sample_xt(self, x0, x1, t):
         """

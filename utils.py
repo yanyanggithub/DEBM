@@ -6,6 +6,7 @@ import numpy as np
 from tqdm import tqdm
 import numpy as np
 from modules.diffusion import Diffusion
+from modules.flow_matching import FlowMatching
 import os
 
 
@@ -115,6 +116,36 @@ class Trainer:
                 optimizer.zero_grad()
                 pred_noise = self.model(noisy_data, t)
                 loss = loss_fn(pred_noise, noise)
+                loss_.append(loss.item())
+                loss.backward()
+                optimizer.step()
+
+            epoch_ = epoch + self.checkpt_epoch + 1
+            self.save_chekpoint(epoch_) 
+            print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
+        return self.model
+    
+
+    # flow matching
+    def train_fm(self, train_loader):    
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        loss_fn = torch.nn.MSELoss()
+        fm = FlowMatching(sigma=0.1, device=self.device)
+
+        for epoch in range(self.n_epochs):
+            loss_ = []
+            for _, (data, _) in enumerate(tqdm(train_loader)):
+                data = data.to(self.device)
+                if self.dataset_name == 'mnist':
+                    # [batch_size, 1, 28, 28]
+                    data.unsqueeze(3)
+                    data = data * 2 - 1
+                x0 = torch.randn_like(data).to(self.device)
+                t = torch.rand(data.shape[0]).to(self.device)
+                xt, conditional_flow = fm.sample_xt(data, x0, t)
+                optimizer.zero_grad()
+                pred = self.model(xt, t)
+                loss = loss_fn(pred, conditional_flow)
                 loss_.append(loss.item())
                 loss.backward()
                 optimizer.step()
