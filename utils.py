@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 import numpy as np
 from modules.diffusion import Diffusion
-from modules.flow_matching import Flow
+from modules.flow import Flow
 import os
 
 
