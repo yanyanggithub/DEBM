@@ -58,7 +58,8 @@ def main_fm(train_dataset, checkpt_file, img_shape):
         x = torch.randn((sample_batch_size, 3, 32, 32))
     x = x.to(device)
     with torch.no_grad():
-        x = model(x, torch.as_tensor(0).unsqueeze(0).to(device))
+        flow = model(x, torch.as_tensor(0).unsqueeze(0).to(device))
+        x = x - flow
     plot(x, img_shape, './output/fm_gen.png')
 
 
