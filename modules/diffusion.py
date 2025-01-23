@@ -3,7 +3,6 @@ import torch
 
 class Diffusion:
     def __init__(self, timesteps=1000, device="cpu"):
-        super().__init__()
         self.timesteps = timesteps
         self.device = device
 
