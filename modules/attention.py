@@ -22,7 +22,7 @@ class SelfAttention(nn.Module):
 
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, key_value_dim, heads):
-        super(CrossAttention, self).__init__()
+        super().__init__()
         self.query_dim = query_dim # Dimension of the query embeddings
         self.key_value_dim = key_value_dim # Dimension of the key and value embeddings
         self.heads = heads # Number of attention heads
