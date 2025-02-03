@@ -8,6 +8,7 @@ import numpy as np
 from modules.diffusion import Diffusion
 from modules.flow import Flow
 import os
+import mlflow
 
 
 def plot(X, img_shape, filename):
@@ -70,12 +71,14 @@ class Trainer:
         self.model.to(self.device)
         self.model.train()
 
-    def save_chekpoint(self, epoch_):
+    def save_chekpoint(self, epoch_, loss_):
         checkpoint = {
             'epoch': epoch_,
             'state_dict': self.model.state_dict(),
             'lr': self.lr
         }
+        mlflow.log_metric("loss", loss_, step=epoch_)
+        print('Epoch %d Loss=%.4f' % (epoch_, loss_))
         torch.save(checkpoint, self.checkpt)
 
     def train_rbm(self, train_loader):
@@ -83,7 +86,7 @@ class Trainer:
             loss_ = []
             if epoch and epoch % 10 == 0:
                 # learning rate decay
-                lr = lr * 0.9
+                self.lr = self.lr * 0.9
             for _, (data, _) in enumerate(train_loader):
                 data = data.to(self.device)
                 input = data.view(-1, self.model.n_visible)
@@ -91,9 +94,7 @@ class Trainer:
                 loss_.append(loss.item())
 
             epoch_ = epoch + self.checkpt_epoch + 1
-            self.save_chekpoint(epoch_) 
-
-            print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
+            self.save_chekpoint(epoch_, np.mean(loss_)) 
         return self.model
 
     def train_diffusion(self, train_loader):    
@@ -121,8 +122,7 @@ class Trainer:
                 optimizer.step()
 
             epoch_ = epoch + self.checkpt_epoch + 1
-            self.save_chekpoint(epoch_) 
-            print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
+            self.save_chekpoint(epoch_, np.mean(loss_)) 
         return self.model
     
 
@@ -151,6 +151,5 @@ class Trainer:
                 optimizer.step()
 
             epoch_ = epoch + self.checkpt_epoch + 1
-            self.save_chekpoint(epoch_) 
-            print('Epoch %d Loss=%.4f' % (epoch_, np.mean(loss_)))
+            self.save_chekpoint(epoch_, np.mean(loss_)) 
         return self.model
