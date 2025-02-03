@@ -1,5 +1,6 @@
 .DS_Store
 data/
 output/
+mlruns/
 */__pycache__/
 __pycache__

@@ -14,6 +14,7 @@ from modules.diffusion import Diffusion
 from modules.unet import Unet
 from ast import literal_eval
 import sys
+import mlflow
 
 from utils import plot, load_dataset, Trainer
 
@@ -157,11 +158,20 @@ if __name__ == "__main__":
         
     train_dataset, img_shape = load_dataset(dataset_name)
 
-    if model_name == 'rbm':
-        main_rbm(train_dataset, checkpt_file, img_shape)
-    elif model_name == 'diffusion':
-        main_diffusion(train_dataset, checkpt_file, img_shape)
-    elif model_name == 'fm':
-        main_fm(train_dataset, checkpt_file, img_shape)
+    with mlflow.start_run() as run:
+        mlflow.log_params({
+            'model_name': model_name,
+            'dataset_name': dataset_name,
+            'batch_size': batch_size,
+            'n_epochs': n_epochs,
+            'learning_rate': learning_rate,
+            'device': device
+        })
+        if model_name == 'rbm':
+            main_rbm(train_dataset, checkpt_file, img_shape)
+        elif model_name == 'diffusion':
+            main_diffusion(train_dataset, checkpt_file, img_shape)
+        elif model_name == 'fm':
+            main_fm(train_dataset, checkpt_file, img_shape)
 
 
