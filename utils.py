@@ -36,8 +36,8 @@ def load_dataset(dataset_name):
     elif dataset_name == 'cifar10':
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), 
-                                 (0.5, 0.5, 0.5))])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                 std=[0.229, 0.224, 0.225])])
         train_dataset = datasets.CIFAR10('./data', train=True, download=True, 
                                         transform=transform)  
         img_shape = (3, 32, 32)
