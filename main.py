@@ -154,13 +154,12 @@ def parse_args():
 if __name__ == "__main__":
     parse_args()
     experiment_name = model_name + '_' + dataset_name
-    mlflow.set_experiment(experiment_name)    
     checkpt = 'chk_' + model_name + '_' + dataset_name + '.pt'
-    checkpt_file = os.path.join(output_dir, checkpt)
-        
+    checkpt_file = os.path.join(output_dir, checkpt)        
     train_dataset, img_shape = load_dataset(dataset_name)
 
-    with mlflow.start_run(run_name=experiment_name) as run:
+    mlflow.set_experiment(experiment_name)    
+    with mlflow.start_run() as run:
         mlflow.log_params({
             'model_name': model_name,
             'dataset_name': dataset_name,
@@ -175,5 +174,7 @@ if __name__ == "__main__":
             main_diffusion(train_dataset, checkpt_file, img_shape)
         elif model_name == 'fm':
             main_fm(train_dataset, checkpt_file, img_shape)
+        
+        mlflow.log_artifact(checkpt_file)
 
 
