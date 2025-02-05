@@ -79,7 +79,7 @@ class Trainer:
         }
         mlflow.log_metric("loss", loss_, step=epoch_)
         print('Epoch %d Loss=%.4f' % (epoch_, loss_))
-        torch.save(checkpoint, self.checkpt)
+        torch.save(checkpoint, self.checkpt) # overwrite
 
     def train_rbm(self, train_loader):
         for epoch in range(self.n_epochs):
