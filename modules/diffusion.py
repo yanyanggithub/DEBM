@@ -43,12 +43,13 @@ class Diffusion:
         # Calculate x0 prediction
         x0 = xt - (torch.sqrt(1 - self.alpha_bars[t]) * noise_pred)
         x0 = x0/torch.sqrt(self.alpha_bars[t])
-        x0 = torch.clamp(x0, -1., 1.)
+        x0 = torch.clamp(x0, 0., 1.)  # Clamp to [0,1] for image data
         
         # Calculate mean of x_(t-1)
         mean = (1/torch.sqrt(self.alphas[t])) * (
             xt - ((1 - self.alphas[t])/torch.sqrt(1 - self.alpha_bars[t])) * noise_pred
         )
+        mean = torch.clamp(mean, 0., 1.)  # Clamp mean to [0,1]
         
         if t == 0:
             return mean, x0
@@ -58,5 +59,9 @@ class Diffusion:
         sigma = torch.sqrt(variance)
         z = torch.randn(xt.shape).to(self.device)
         
-        return mean + sigma * z, x0
+        # Sample and clamp the final result
+        sample = mean + sigma * z
+        sample = torch.clamp(sample, 0., 1.)
+        
+        return sample, x0
     
