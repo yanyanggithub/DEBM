@@ -40,22 +40,23 @@ class Diffusion:
         reverse diffusion process 
         sample from the distribution p(x_(t-1)|x_t)
         """       
+        # Calculate x0 prediction
         x0 = xt - (torch.sqrt(1 - self.alpha_bars[t]) * noise_pred)
         x0 = x0/torch.sqrt(self.alpha_bars[t])
-        x0 = torch.clamp(x0, -1., 1.) 
+        x0 = torch.clamp(x0, -1., 1.)
         
-        # mean of x_(t-1)
-        mean = (xt - ((1 - self.alphas[t]) * noise_pred)
-                /(torch.sqrt(1 - self.alpha_bars[t])))
-        mean = mean/(torch.sqrt(self.alphas[t]))
+        # Calculate mean of x_(t-1)
+        mean = (1/torch.sqrt(self.alphas[t])) * (
+            xt - ((1 - self.alphas[t])/torch.sqrt(1 - self.alpha_bars[t])) * noise_pred
+        )
         
         if t == 0:
-            return mean, x0        
-        else:
-            variance =  (1 - self.alpha_bars[t-1])/(1 - self.alpha_bars[t])
-            variance = variance * self.betas[t]
-            sigma = variance**0.5
-            z = torch.randn(xt.shape).to(self.device)
-            
+            return mean, x0
+        
+        # Calculate variance for t > 0
+        variance = self.betas[t] * (1 - self.alpha_bars[t-1])/(1 - self.alpha_bars[t])
+        sigma = torch.sqrt(variance)
+        z = torch.randn(xt.shape).to(self.device)
+        
         return mean + sigma * z, x0
     
