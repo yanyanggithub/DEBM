@@ -225,6 +225,12 @@ class Unet(nn.Module):
         """
         Enhanced UNet with adaptive optimizations for both grayscale and RGB
         """
+        # Ensure input has correct shape
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)  # Add channel dimension if missing
+        elif len(x.shape) == 5:
+            x = x.squeeze(2)  # Remove extra dimension if present
+            
         t_emb = get_time_embedding(t, self.t_emb_dim)
         base_channels = 32 if self.n_channels == 1 else 64
         

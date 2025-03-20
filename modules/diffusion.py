@@ -96,7 +96,10 @@ class Diffusion:
         )
         mean = torch.clamp(mean, -1., 1.)
         
-        if t == 0:
+        # Check if any timestep is 0
+        is_t0 = (t == 0).any()
+        
+        if is_t0:
             # Normalize to [0,1] range for final output
             mean = (mean + 1) / 2
             x0 = (x0 + 1) / 2

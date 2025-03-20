@@ -57,9 +57,11 @@ class SelfAttention(nn.Module):
             attn = attn + self.edge_weight * edge_attn
         else:
             # Color-aware attention for RGB
-            # Compute color differences in the feature space
+            # Reshape for color channel processing
             q_color = q.reshape(batch_size, self.n_heads, h*w, self.head_dim)
             k_color = k.transpose(-2, -1).reshape(batch_size, self.n_heads, h*w, self.head_dim)
+            
+            # Compute color differences in the feature space
             color_attn = torch.abs(q_color - k_color).mean(dim=-1, keepdim=True)
             attn = attn + self.color_weight * color_attn
         

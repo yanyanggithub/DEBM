@@ -9,7 +9,19 @@ from modules.diffusion import Diffusion
 from modules.flow import Flow
 import os
 import mlflow
+import imageio
+from datetime import datetime
+import logging
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('output/training.log'),
+        logging.StreamHandler()
+    ]
+)
 
 def plot(X, img_shape, filename):
     X = X.to("cpu")
@@ -25,7 +37,47 @@ def plot(X, img_shape, filename):
     plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
     plt.tight_layout()
     plt.savefig(filename)
+    plt.close()
 
+def create_denoising_gif(noisy_images, denoised_images, filename, fps=10):
+    """Create a GIF showing the denoising process"""
+    frames = []
+    for i in range(len(noisy_images)):
+        # Convert to numpy and normalize to [0, 255]
+        frame = noisy_images[i].cpu().detach().numpy()
+        # Handle different input shapes
+        if len(frame.shape) == 4:  # [batch, channel, height, width]
+            # Take first image from batch
+            frame = frame[0]
+        
+        # Handle channel dimension
+        if len(frame.shape) == 3:
+            if frame.shape[0] == 1:  # Grayscale [1, height, width]
+                frame = frame.squeeze(0)
+            else:  # RGB [3, height, width]
+                frame = np.moveaxis(frame, 0, -1)  # Move channels to last dimension
+        
+        # Normalize to [0, 255]
+        frame = ((frame + 1) / 2 * 255).astype(np.uint8)
+        frames.append(frame)
+    
+    # Add final denoised result
+    final = denoised_images[-1].cpu().detach().numpy()
+    if len(final.shape) == 4:  # [batch, channel, height, width]
+        final = final[0]
+    
+    # Handle channel dimension for final image
+    if len(final.shape) == 3:
+        if final.shape[0] == 1:  # Grayscale [1, height, width]
+            final = final.squeeze(0)
+        else:  # RGB [3, height, width]
+            final = np.moveaxis(final, 0, -1)  # Move channels to last dimension
+    
+    final = ((final + 1) / 2 * 255).astype(np.uint8)
+    frames.append(final)
+    
+    # Save as GIF
+    imageio.mimsave(filename, frames, fps=fps)
 
 def load_dataset(dataset_name):
     if dataset_name == 'mnist':
@@ -58,16 +110,23 @@ class Trainer:
         self.device = device
         self.checkpt_epoch = 0
         self.setup()
+        
+        # Create output directories
+        self.output_dir = os.path.dirname(checkpt)
+        self.visualization_dir = os.path.join(self.output_dir, 'visualizations')
+        os.makedirs(self.visualization_dir, exist_ok=True)
     
     def setup(self):
         if torch.cuda.is_available():
             self.device = "cuda"
             torch.cuda.set_device("cuda:0")
+            logging.info(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
         if os.path.isfile(self.checkpt):
             checkpoint = torch.load(self.checkpt, weights_only=True)
             self.model.load_state_dict(checkpoint['state_dict'])
             self.checkpt_epoch = checkpoint['epoch']
             self.lr = checkpoint['lr']
+            logging.info(f"Loaded checkpoint from epoch {self.checkpt_epoch}")
         self.model.to(self.device)
         self.model.train()
 
@@ -78,8 +137,117 @@ class Trainer:
             'lr': self.lr
         }
         mlflow.log_metric("loss", loss_, step=epoch_)
-        print('Epoch %d Loss=%.4f' % (epoch_, loss_))
-        torch.save(checkpoint, self.checkpt) # overwrite
+        logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
+        torch.save(checkpoint, self.checkpt)
+
+    def test_denoising(self, epoch, diffusion):
+        """Test denoising process and create visualizations"""
+        self.model.eval()
+        with torch.no_grad():
+            # Generate sample batch
+            if self.dataset_name == 'mnist':
+                x = torch.randn((25, 1, 28, 28))
+            else:  # cifar10
+                x = torch.randn((25, 3, 32, 32))
+            x = x.to(self.device)
+            
+            # Store intermediate results
+            noisy_images = []
+            denoised_images = []
+            
+            # Denoising process
+            for t in tqdm(reversed(range(diffusion.timesteps)), desc="Denoising test"):
+                t_batch = torch.full((x.shape[0],), t, device=self.device)
+                noise_pred = self.model(x, t_batch)
+                x, _ = diffusion.denoise(x, noise_pred, t_batch)
+                
+                # Store intermediate results every 100 steps
+                if t % 100 == 0:
+                    noisy_images.append(x.clone())
+                    denoised_images.append(x.clone())
+            
+            # Create visualizations
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Save final denoised images
+            plot(x, (1, 28, 28) if self.dataset_name == 'mnist' else (3, 32, 32),
+                 os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png'))
+            
+            # Create and save denoising process GIF
+            create_denoising_gif(
+                noisy_images, denoised_images,
+                os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif')
+            )
+            
+            # Log metrics
+            mlflow.log_artifact(os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png'))
+            mlflow.log_artifact(os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif'))
+            
+        self.model.train()
+
+    def train_diffusion(self, train_loader):    
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        loss_fn = torch.nn.MSELoss()
+        diffusion = Diffusion(timesteps=1000, device=self.device)
+        
+        # Learning rate scheduler
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+        
+        best_loss = float('inf')
+        for epoch in range(self.n_epochs):
+            epoch_loss = []
+            progress_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{self.n_epochs}')
+            
+            for batch_idx, (data, _) in enumerate(progress_bar):
+                data = data.to(self.device)
+                if self.dataset_name == 'mnist':
+                    # Ensure correct shape for MNIST: [batch_size, 1, 28, 28]
+                    if len(data.shape) == 3:
+                        data = data.unsqueeze(1)
+                    data = data * 2 - 1  # Normalize to [-1, 1]
+                else:  # cifar10
+                    data = data * 2 - 1  # Normalize to [-1, 1]
+                
+                t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
+                t = t.to(self.device)
+                noise = torch.randn_like(data).to(self.device)
+                noisy_data = diffusion.add_noise(data, noise, t)
+                
+                optimizer.zero_grad()
+                pred_noise = self.model(noisy_data, t)
+                loss = loss_fn(pred_noise, noise)
+                loss.backward()
+                optimizer.step()
+                
+                epoch_loss.append(loss.item())
+                progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+                
+                # Log batch metrics
+                if batch_idx % 100 == 0:
+                    mlflow.log_metric("batch_loss", loss.item(), step=epoch * len(train_loader) + batch_idx)
+            
+            mean_loss = np.mean(epoch_loss)
+            epoch_ = epoch + self.checkpt_epoch + 1
+            
+            # Update learning rate based on loss
+            scheduler.step(mean_loss)
+            
+            # Save checkpoint if best loss
+            if mean_loss < best_loss:
+                best_loss = mean_loss
+                self.save_chekpoint(epoch_, mean_loss)
+            
+            # Log epoch metrics
+            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {optimizer.param_groups[0]["lr"]:.6f}')
+            mlflow.log_metrics({
+                "epoch_loss": mean_loss,
+                "learning_rate": optimizer.param_groups[0]["lr"]
+            }, step=epoch_)
+            
+            # Run denoising test after each epoch
+            self.test_denoising(epoch_, diffusion)
+            
+        return self.model
 
     def train_rbm(self, train_loader):
         for epoch in range(self.n_epochs):
@@ -96,35 +264,6 @@ class Trainer:
             epoch_ = epoch + self.checkpt_epoch + 1
             self.save_chekpoint(epoch_, np.mean(loss_)) 
         return self.model
-
-    def train_diffusion(self, train_loader):    
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        loss_fn = torch.nn.MSELoss()
-        diffusion = Diffusion(timesteps=1000, device=self.device)
-
-        for epoch in range(self.n_epochs):
-            loss_ = []
-            for _, (data, _) in enumerate(tqdm(train_loader)):
-                data = data.to(self.device)
-                if self.dataset_name == 'mnist':
-                    # [batch_size, 1, 28, 28]
-                    data.unsqueeze(3)
-                    data = data * 2 - 1
-                t = torch.randint(0, diffusion.timesteps, (data.shape[0],))
-                t = t.to(self.device)
-                noise = torch.randn_like(data).to(self.device)
-                noisy_data = diffusion.add_noise(data, noise, t)
-                optimizer.zero_grad()
-                pred_noise = self.model(noisy_data, t)
-                loss = loss_fn(pred_noise, noise)
-                loss_.append(loss.item())
-                loss.backward()
-                optimizer.step()
-
-            epoch_ = epoch + self.checkpt_epoch + 1
-            self.save_chekpoint(epoch_, np.mean(loss_)) 
-        return self.model
-    
 
     # flow matching
     def train_fm(self, train_loader):    
