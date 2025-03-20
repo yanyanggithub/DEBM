@@ -15,14 +15,19 @@ class SelfAttention(nn.Module):
         self.v_proj = nn.Linear(n_channels, n_channels)
         self.out_proj = nn.Linear(n_channels, n_channels)
         
-        # Better normalization
-        self.g_norm = nn.GroupNorm(8, n_channels)
+        # Adaptive normalization based on channel count
+        self.g_norm = nn.GroupNorm(4 if n_channels <= 64 else 8, n_channels)
         
         # Dropout for regularization
         self.dropout = nn.Dropout(0.1)
         
         # Scale factor for attention scores
         self.scale = self.head_dim ** -0.5
+        
+        # Image type specific parameters
+        self.is_grayscale = n_channels <= 64
+        self.edge_weight = 1.5 if self.is_grayscale else 1.0
+        self.color_weight = 1.2 if not self.is_grayscale else 1.0
 
     def forward(self, x):
         batch_size, channels, h, w = x.shape
@@ -42,8 +47,22 @@ class SelfAttention(nn.Module):
         k = k.reshape(batch_size, h*w, self.n_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(batch_size, h*w, self.n_heads, self.head_dim).transpose(1, 2)
         
-        # Compute attention scores
+        # Compute base attention scores
         attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        
+        # Image type specific attention enhancements
+        if self.is_grayscale:
+            # Edge-aware attention for grayscale
+            edge_attn = torch.abs(q - k.transpose(-2, -1))
+            attn = attn + self.edge_weight * edge_attn
+        else:
+            # Color-aware attention for RGB
+            # Compute color differences in the feature space
+            q_color = q.reshape(batch_size, self.n_heads, h*w, self.head_dim)
+            k_color = k.transpose(-2, -1).reshape(batch_size, self.n_heads, h*w, self.head_dim)
+            color_attn = torch.abs(q_color - k_color).mean(dim=-1, keepdim=True)
+            attn = attn + self.color_weight * color_attn
+        
         attn = torch.softmax(attn, dim=-1)
         attn = self.dropout(attn)
         

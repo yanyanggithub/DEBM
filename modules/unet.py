@@ -173,34 +173,37 @@ class Unet(nn.Module):
         self.t_emb_dim = t_emb_dim
         self.device = device
         
-        # Initial conv with proper RGB handling
-        self.inc = DoubleConv(n_channels, 64)
+        # Base channel dimensions
+        base_channels = 32 if n_channels == 1 else 64
         
-        # Down blocks with increased channels
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        # Initial conv with adaptive channel handling
+        self.inc = DoubleConv(n_channels, base_channels)
+        
+        # Down blocks with adaptive channels
+        self.down1 = Down(base_channels, base_channels * 2)
+        self.down2 = Down(base_channels * 2, base_channels * 4)
+        self.down3 = Down(base_channels * 4, base_channels * 8)
         
         # Up blocks with proper channel handling
-        self.up1 = Up(768, 256)  # 512 + 256 = 768 input channels
-        self.up2 = Up(384, 128)  # 256 + 128 = 384 input channels
-        self.up3 = Up(192, 64)   # 128 + 64 = 192 input channels
+        self.up1 = Up(base_channels * 12, base_channels * 4)  # 8 + 4 = 12
+        self.up2 = Up(base_channels * 6, base_channels * 2)   # 4 + 2 = 6
+        self.up3 = Up(base_channels * 3, base_channels)       # 2 + 1 = 3
         
-        # Self attention blocks with improved heads
-        self.sa1 = SelfAttention(256, 8)  # Changed from 512 to 256
-        self.sa2 = SelfAttention(512, 4)
-        self.sa3 = SelfAttention(256, 8)
+        # Self attention blocks with adaptive heads
+        self.sa1 = SelfAttention(base_channels * 4, 4 if n_channels == 1 else 8)
+        self.sa2 = SelfAttention(base_channels * 8, 2 if n_channels == 1 else 4)
+        self.sa3 = SelfAttention(base_channels * 4, 4 if n_channels == 1 else 8)
         
-        # Time embedding blocks with proper channel dimensions
-        self.time_emb_down1 = TimeEmbedding(128, t_emb_dim)  # 128 channels
-        self.time_emb_down2 = TimeEmbedding(256, t_emb_dim)  # 256 channels
-        self.time_emb_down3 = TimeEmbedding(512, t_emb_dim)  # 512 channels
-        self.time_emb_up1 = TimeEmbedding(256, t_emb_dim)    # 256 channels
-        self.time_emb_up2 = TimeEmbedding(128, t_emb_dim)    # 128 channels
-        self.time_emb_up3 = TimeEmbedding(64, t_emb_dim)     # 64 channels
+        # Time embedding blocks with adaptive dimensions
+        self.time_emb_down1 = TimeEmbedding(base_channels * 2, t_emb_dim)
+        self.time_emb_down2 = TimeEmbedding(base_channels * 4, t_emb_dim)
+        self.time_emb_down3 = TimeEmbedding(base_channels * 8, t_emb_dim)
+        self.time_emb_up1 = TimeEmbedding(base_channels * 4, t_emb_dim)
+        self.time_emb_up2 = TimeEmbedding(base_channels * 2, t_emb_dim)
+        self.time_emb_up3 = TimeEmbedding(base_channels, t_emb_dim)
         
         # Output conv
-        self.outc = OutConv(64, n_channels)
+        self.outc = OutConv(base_channels, n_channels)
         
         self.apply(self._init_weights)
     
@@ -210,44 +213,49 @@ class Unet(nn.Module):
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Conv2d):
-            torch.nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
+            # Adaptive initialization based on input channels
+            if self.n_channels == 1:
+                torch.nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
+            else:
+                torch.nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
 
     def forward(self, x, t):
         """
-        Enhanced UNet with improved time embedding integration
+        Enhanced UNet with adaptive optimizations for both grayscale and RGB
         """
         t_emb = get_time_embedding(t, self.t_emb_dim)
+        base_channels = 32 if self.n_channels == 1 else 64
         
-        # Down path with proper RGB handling
-        x1 = self.inc(x)  # 64 channels
-        x2 = self.down1(x1)  # 128 channels
+        # Down path with adaptive channel handling
+        x1 = self.inc(x)  # base_channels
+        x2 = self.down1(x1)  # base_channels * 2
         mod1 = self.time_emb_down1(t_emb)
-        x2 = x2 * (1 + mod1.view(-1, 128, 1, 1))
+        x2 = x2 * (1 + mod1.view(-1, base_channels * 2, 1, 1))
         
-        x3 = self.down2(x2)  # 256 channels
+        x3 = self.down2(x2)  # base_channels * 4
         mod2 = self.time_emb_down2(t_emb)
-        x3 = x3 * (1 + mod2.view(-1, 256, 1, 1))
-        x3 = self.sa1(x3)  # 256 channels
+        x3 = x3 * (1 + mod2.view(-1, base_channels * 4, 1, 1))
+        x3 = self.sa1(x3)  # base_channels * 4
         
-        x4 = self.down3(x3)  # 512 channels
+        x4 = self.down3(x3)  # base_channels * 8
         mod3 = self.time_emb_down3(t_emb)
-        x4 = x4 * (1 + mod3.view(-1, 512, 1, 1))
-        x4 = self.sa2(x4)  # 512 channels
+        x4 = x4 * (1 + mod3.view(-1, base_channels * 8, 1, 1))
+        x4 = self.sa2(x4)  # base_channels * 8
         
-        # Up path with improved feature handling
-        x = self.up1(x4, x3)  # 768 -> 256 channels
+        # Up path with adaptive feature handling
+        x = self.up1(x4, x3)  # base_channels * 12 -> base_channels * 4
         mod4 = self.time_emb_up1(t_emb)
-        x = x * (1 + mod4.view(-1, 256, 1, 1))
-        x = self.sa3(x)  # 256 channels
+        x = x * (1 + mod4.view(-1, base_channels * 4, 1, 1))
+        x = self.sa3(x)  # base_channels * 4
         
-        x = self.up2(x, x2)  # 384 -> 128 channels
+        x = self.up2(x, x2)  # base_channels * 6 -> base_channels * 2
         mod5 = self.time_emb_up2(t_emb)
-        x = x * (1 + mod5.view(-1, 128, 1, 1))
+        x = x * (1 + mod5.view(-1, base_channels * 2, 1, 1))
         
-        x = self.up3(x, x1)  # 192 -> 64 channels
+        x = self.up3(x, x1)  # base_channels * 3 -> base_channels
         mod6 = self.time_emb_up3(t_emb)
-        x = x * (1 + mod6.view(-1, 64, 1, 1))
+        x = x * (1 + mod6.view(-1, base_channels, 1, 1))
         
         return self.outc(x)
