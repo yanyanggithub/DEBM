@@ -158,23 +158,14 @@ if __name__ == "__main__":
     checkpt_file = os.path.join(output_dir, checkpt)        
     train_dataset, img_shape = load_dataset(dataset_name)
 
-    mlflow.set_experiment(experiment_name)    
-    with mlflow.start_run() as run:
-        mlflow.log_params({
-            'model_name': model_name,
-            'dataset_name': dataset_name,
-            'batch_size': batch_size,
-            'n_epochs': n_epochs,
-            'learning_rate': learning_rate,
-            'device': device
-        })
-        if model_name == 'rbm':
-            main_rbm(train_dataset, checkpt_file, img_shape)
-        elif model_name == 'diffusion':
-            main_diffusion(train_dataset, checkpt_file, img_shape)
-        elif model_name == 'fm':
-            main_fm(train_dataset, checkpt_file, img_shape)
-        
-        mlflow.log_artifact(checkpt_file)
+    # Set up MLflow experiment
+    mlflow.set_experiment(experiment_name)
+    
+    if model_name == 'rbm':
+        main_rbm(train_dataset, checkpt_file, img_shape)
+    elif model_name == 'diffusion':
+        main_diffusion(train_dataset, checkpt_file, img_shape)
+    elif model_name == 'fm':
+        main_fm(train_dataset, checkpt_file, img_shape)
 
 

@@ -109,6 +109,7 @@ class Trainer:
         self.batch_size = batch_size
         self.device = device
         self.checkpt_epoch = 0
+        self.best_loss = float('inf')
         self.setup()
         
         # Create output directories
@@ -127,12 +128,35 @@ class Trainer:
         except:
             pass
             
-        # Set up experiment
-        mlflow.set_experiment(f"{self.model.__class__.__name__}_{self.dataset_name}")
+        # Get experiment name from checkpoint path
+        experiment_name = os.path.basename(self.checkpt).replace('chk_', '').replace('.pt', '')
         
-        # Start new run
-        run = mlflow.start_run()
-        self.run_id = run.info.run_id
+        # Start new run or resume existing run
+        if os.path.exists(self.checkpt):
+            try:
+                # Try loading checkpoint first
+                checkpoint = torch.load(self.checkpt, weights_only=False)
+                if 'mlflow_run_id' in checkpoint:
+                    # Resume existing run
+                    self.run_id = checkpoint['mlflow_run_id']
+                    run = mlflow.start_run(run_id=self.run_id)
+                    logging.info(f"Resuming MLflow run {self.run_id}")
+                else:
+                    # Start new run
+                    run = mlflow.start_run()
+                    self.run_id = run.info.run_id
+                    logging.info(f"Starting new MLflow run {self.run_id}")
+            except Exception as e:
+                logging.warning(f"Failed to load checkpoint for MLflow run ID: {e}")
+                # Start new run if checkpoint loading fails
+                run = mlflow.start_run()
+                self.run_id = run.info.run_id
+                logging.info(f"Starting new MLflow run {self.run_id}")
+        else:
+            # Start new run
+            run = mlflow.start_run()
+            self.run_id = run.info.run_id
+            logging.info(f"Starting new MLflow run {self.run_id}")
         
         # Log model parameters
         mlflow.log_params({
@@ -180,12 +204,37 @@ class Trainer:
             self.device = "cuda"
             torch.cuda.set_device("cuda:0")
             logging.info(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
+        
         if os.path.isfile(self.checkpt):
-            checkpoint = torch.load(self.checkpt, weights_only=True)
-            self.model.load_state_dict(checkpoint['state_dict'])
-            self.checkpt_epoch = checkpoint['epoch']
-            self.lr = checkpoint['lr']
-            logging.info(f"Loaded checkpoint from epoch {self.checkpt_epoch}")
+            try:
+                # Try loading with weights_only=False first
+                checkpoint = torch.load(self.checkpt, weights_only=False)
+            except Exception as e:
+                logging.warning(f"Failed to load checkpoint with weights_only=False: {e}")
+                try:
+                    # If that fails, try loading with weights_only=True
+                    checkpoint = torch.load(self.checkpt, weights_only=True)
+                except Exception as e:
+                    logging.error(f"Failed to load checkpoint: {e}")
+                    checkpoint = None
+            
+            if checkpoint is not None:
+                try:
+                    self.model.load_state_dict(checkpoint['state_dict'])
+                    self.checkpt_epoch = checkpoint['epoch']
+                    self.lr = checkpoint['lr']
+                    if 'best_loss' in checkpoint:
+                        self.best_loss = checkpoint['best_loss']
+                    logging.info(f"Loaded checkpoint from epoch {self.checkpt_epoch}")
+                except Exception as e:
+                    logging.error(f"Failed to load model state from checkpoint: {e}")
+                    self.checkpt_epoch = 0
+                    self.best_loss = float('inf')
+        else:
+            logging.info("No checkpoint found, starting from scratch")
+            self.checkpt_epoch = 0
+            self.best_loss = float('inf')
+        
         self.model.to(self.device)
         self.model.train()
 
@@ -193,14 +242,19 @@ class Trainer:
         checkpoint = {
             'epoch': epoch_,
             'state_dict': self.model.state_dict(),
-            'lr': self.lr
+            'lr': self.lr,
+            'best_loss': self.best_loss,
+            'mlflow_run_id': self.run_id  # Save MLflow run ID for resumption
         }
         try:
+            # Save checkpoint first
+            torch.save(checkpoint, self.checkpt)
+            # Then log to MLflow
             mlflow.log_metric("loss", loss_, step=epoch_)
+            mlflow.log_artifact(self.checkpt, f"checkpoint_epoch_{epoch_}")
         except Exception as e:
-            logging.warning(f"Failed to log loss to MLflow: {e}")
+            logging.warning(f"Failed to save checkpoint or log to MLflow: {e}")
         logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
-        torch.save(checkpoint, self.checkpt)
 
     def test_denoising(self, epoch, diffusion):
         """Test denoising process and create visualizations"""
@@ -262,8 +316,11 @@ class Trainer:
         # Learning rate scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
         
-        best_loss = float('inf')
-        for epoch in range(self.n_epochs):
+        # Resume from checkpoint
+        start_epoch = self.checkpt_epoch
+        logging.info(f"Starting training from epoch {start_epoch + 1}")
+        
+        for epoch in range(start_epoch, self.n_epochs):
             epoch_loss = []
             epoch_grad_norm = []
             progress_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{self.n_epochs}')
@@ -308,14 +365,14 @@ class Trainer:
             
             mean_loss = np.mean(epoch_loss)
             mean_grad_norm = np.mean(epoch_grad_norm)
-            epoch_ = epoch + self.checkpt_epoch + 1
+            epoch_ = epoch + 1
             
             # Update learning rate based on loss
             scheduler.step(mean_loss)
             
             # Save checkpoint if best loss
-            if mean_loss < best_loss:
-                best_loss = mean_loss
+            if mean_loss < self.best_loss:
+                self.best_loss = mean_loss
                 self.save_chekpoint(epoch_, mean_loss)
             
             # Log epoch metrics
@@ -324,7 +381,7 @@ class Trainer:
                 "epoch_loss": mean_loss,
                 "epoch_grad_norm": mean_grad_norm,
                 "learning_rate": optimizer.param_groups[0]["lr"],
-                "best_loss": best_loss,
+                "best_loss": self.best_loss,
             }, step=epoch_)
             
             # Run denoising test after each epoch
