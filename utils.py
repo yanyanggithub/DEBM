@@ -12,9 +12,7 @@ import mlflow
 import imageio
 from datetime import datetime
 import logging
-import psutil
-import GPUtil
-from typing import Dict, Any
+
 
 # Set up logging
 def setup_logging(output_dir):
@@ -132,6 +130,10 @@ class Trainer:
         
         # Initialize MLflow tracking
         self.start_mlflow_run()
+        
+        # Track best checkpoints
+        self.max_checkpoints = 10
+        self.checkpoint_history = []  # List of (loss, epoch, path) tuples
     
     def start_mlflow_run(self):
         """Initialize MLflow run with model and training parameters"""
@@ -219,45 +221,6 @@ class Trainer:
         except Exception as e:
             logging.warning(f"Failed to log artifact to MLflow: {e}")
 
-    @staticmethod
-    def get_system_metrics() -> Dict[str, Any]:
-        """Collect system metrics including CPU, memory, and GPU usage"""
-        metrics = {}
-        
-        # CPU metrics
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_count = psutil.cpu_count()
-        metrics.update({
-            "cpu_percent": cpu_percent,
-            "cpu_count": cpu_count,
-        })
-        
-        # Memory metrics
-        memory = psutil.virtual_memory()
-        metrics.update({
-            "memory_percent": memory.percent,
-            "memory_available_gb": memory.available / (1024**3),
-            "memory_used_gb": memory.used / (1024**3),
-            "memory_total_gb": memory.total / (1024**3),
-        })
-        
-        # GPU metrics if available
-        if torch.cuda.is_available():
-            try:
-                gpus = GPUtil.getGPUs()
-                for i, gpu in enumerate(gpus):
-                    metrics.update({
-                        f"gpu_{i}_memory_percent": gpu.memoryUtil * 100,
-                        f"gpu_{i}_memory_used_gb": gpu.memoryUsed / 1024,
-                        f"gpu_{i}_memory_total_gb": gpu.memoryTotal / 1024,
-                        f"gpu_{i}_load_percent": gpu.load * 100,
-                        f"gpu_{i}_temperature": gpu.temperature,
-                    })
-            except Exception as e:
-                logging.warning(f"Failed to get GPU metrics: {e}")
-        
-        return metrics
-
     def setup(self):
         if torch.cuda.is_available():
             self.device = "cuda"
@@ -306,11 +269,44 @@ class Trainer:
             'mlflow_run_id': self.run_id  # Save MLflow run ID for resumption
         }
         try:
-            # Save checkpoint first
+            # Save checkpoint locally
             torch.save(checkpoint, self.checkpt)
-            # Then log to MLflow
+            
+            # Store old checkpoints before updating history
+            old_checkpoints = set(self.checkpoint_history)
+            
+            # Update checkpoint history
+            self.checkpoint_history.append((loss_, epoch_, self.checkpt))
+            
+            # Sort by loss (best first) and keep only top max_checkpoints
+            self.checkpoint_history.sort(key=lambda x: x[0])
+            self.checkpoint_history = self.checkpoint_history[:self.max_checkpoints]
+            
+            # Get new set of checkpoints
+            new_checkpoints = set(self.checkpoint_history)
+            
+            # Find checkpoints that were removed
+            removed_checkpoints = old_checkpoints - new_checkpoints
+            
+            # Delete removed checkpoints from MLflow
+            if removed_checkpoints:
+                try:
+                    from mlflow.store.artifact.artifact_repository_registry import get_artifact_repository
+                    repository = get_artifact_repository(mlflow.get_artifact_uri())
+                    for _, epoch, _ in removed_checkpoints:
+                        filename = f"checkpoint_epoch_{epoch}"
+                        repository.delete_artifacts(filename)
+                        logging.info(f"Deleted old checkpoint artifact: {filename}")
+                except Exception as e:
+                    logging.warning(f"Failed to delete old checkpoint artifacts from MLflow: {e}")
+            
+            # Only log the new checkpoint if it's among the best 10
+            if (loss_, epoch_, self.checkpt) in self.checkpoint_history:
+                mlflow.log_artifact(self.checkpt, f"checkpoint_epoch_{epoch_}")
+            
+            # Log current loss
             mlflow.log_metric("loss", loss_, step=epoch_)
-            mlflow.log_artifact(self.checkpt, f"checkpoint_epoch_{epoch_}")
+            
         except Exception as e:
             logging.warning(f"Failed to save checkpoint or log to MLflow: {e}")
         logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
