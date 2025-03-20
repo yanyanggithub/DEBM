@@ -16,7 +16,7 @@ from ast import literal_eval
 import sys
 import mlflow
 
-from utils import plot, load_dataset, Trainer
+from utils import plot, load_dataset, Trainer, setup_logging
 
 dataset_name = 'mnist'  # 'mnist' or 'cifar10'
 model_name = 'rbm' # 'rbm' or 'diffusion' or 'fm'
@@ -155,7 +155,9 @@ if __name__ == "__main__":
     parse_args()
     experiment_name = model_name + '_' + dataset_name
     checkpt = 'chk_' + experiment_name + '.pt'
-    checkpt_file = os.path.join(output_dir, checkpt)        
+    checkpt_file = os.path.join(output_dir, checkpt)    
+    # Initialize logging
+    setup_logging(output_dir)    
     train_dataset, img_shape = load_dataset(dataset_name)
 
     # Set up MLflow experiment

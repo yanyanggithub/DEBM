@@ -12,16 +12,29 @@ import mlflow
 import imageio
 from datetime import datetime
 import logging
+import psutil
+import GPUtil
+from typing import Dict, Any
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('output/training.log'),
-        logging.StreamHandler()
-    ]
-)
+def setup_logging(output_dir):
+    """Set up logging with file and console handlers, creating output directory if needed"""
+  
+    # Configure logging
+    log_file = os.path.join(output_dir, 'training.log')
+    handlers = [logging.StreamHandler()]  # Always include console handler
+    
+    try:
+        file_handler = logging.FileHandler(log_file)
+        handlers.append(file_handler)
+    except Exception as e:
+        print(f"Warning: Failed to create log file handler: {e}")
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=handlers
+    )
 
 def plot(X, img_shape, filename):
     X = X.to("cpu")
@@ -128,6 +141,13 @@ class Trainer:
         except:
             pass
             
+        # Enable system metrics logging
+        try:
+            mlflow.enable_system_metrics_logging()
+            logging.info("Enabled MLflow system metrics logging")
+        except Exception as e:
+            logging.warning(f"Failed to enable MLflow system metrics logging: {e}")
+            
         # Get experiment name from checkpoint path
         experiment_name = os.path.basename(self.checkpt).replace('chk_', '').replace('.pt', '')
         
@@ -198,6 +218,45 @@ class Trainer:
             mlflow.log_artifact(artifact_path, artifact_name)
         except Exception as e:
             logging.warning(f"Failed to log artifact to MLflow: {e}")
+
+    @staticmethod
+    def get_system_metrics() -> Dict[str, Any]:
+        """Collect system metrics including CPU, memory, and GPU usage"""
+        metrics = {}
+        
+        # CPU metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_count = psutil.cpu_count()
+        metrics.update({
+            "cpu_percent": cpu_percent,
+            "cpu_count": cpu_count,
+        })
+        
+        # Memory metrics
+        memory = psutil.virtual_memory()
+        metrics.update({
+            "memory_percent": memory.percent,
+            "memory_available_gb": memory.available / (1024**3),
+            "memory_used_gb": memory.used / (1024**3),
+            "memory_total_gb": memory.total / (1024**3),
+        })
+        
+        # GPU metrics if available
+        if torch.cuda.is_available():
+            try:
+                gpus = GPUtil.getGPUs()
+                for i, gpu in enumerate(gpus):
+                    metrics.update({
+                        f"gpu_{i}_memory_percent": gpu.memoryUtil * 100,
+                        f"gpu_{i}_memory_used_gb": gpu.memoryUsed / 1024,
+                        f"gpu_{i}_memory_total_gb": gpu.memoryTotal / 1024,
+                        f"gpu_{i}_load_percent": gpu.load * 100,
+                        f"gpu_{i}_temperature": gpu.temperature,
+                    })
+            except Exception as e:
+                logging.warning(f"Failed to get GPU metrics: {e}")
+        
+        return metrics
 
     def setup(self):
         if torch.cuda.is_available():
@@ -354,7 +413,7 @@ class Trainer:
                 epoch_loss.append(loss.item())
                 progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
                 
-                # Log batch metrics
+                # Log batch metrics every 100 batches
                 if batch_idx % 100 == 0:
                     self.log_metrics({
                         "batch_loss": loss.item(),
@@ -376,13 +435,14 @@ class Trainer:
                 self.save_chekpoint(epoch_, mean_loss)
             
             # Log epoch metrics
-            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {optimizer.param_groups[0]["lr"]:.6f}')
             self.log_metrics({
                 "epoch_loss": mean_loss,
                 "epoch_grad_norm": mean_grad_norm,
                 "learning_rate": optimizer.param_groups[0]["lr"],
                 "best_loss": self.best_loss,
             }, step=epoch_)
+            
+            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {optimizer.param_groups[0]["lr"]:.6f}')
             
             # Run denoising test after each epoch
             self.test_denoising(epoch_, diffusion)
