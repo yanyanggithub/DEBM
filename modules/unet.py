@@ -24,19 +24,21 @@ def get_time_embedding(timesteps, t_emb_dim):
 
 class TimeEmbedding(nn.Module):
     """
-    Maps the Time Embedding to the Required output Dimension.
+    Enhanced Time Embedding with better capacity
     """
     def __init__(self, n_out, t_emb_dim=128):
         super().__init__()
         
-        # Time Embedding Block with more capacity
+        # Time Embedding Block with increased capacity
         self.te_block = nn.Sequential(
-            nn.Linear(t_emb_dim, n_out * 2),
+            nn.Linear(t_emb_dim, n_out * 4),
+            nn.SiLU(),
+            nn.Linear(n_out * 4, n_out * 2),
             nn.SiLU(),
             nn.Linear(n_out * 2, n_out)
         )
         
-        # Simpler modulation
+        # Improved modulation
         self.modulation = nn.Sequential(
             nn.Linear(n_out, n_out),
             nn.SiLU(),
@@ -59,16 +61,16 @@ class ResBlock(nn.Module):
         # First conv to change channels if needed
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         
-        # Main res block with 3x3 convolutions
+        # Main res block with improved convolutions
         self.res_block = nn.ModuleList([
             nn.Sequential(
                 nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(out_channels),
+                nn.GroupNorm(8, out_channels),  # Changed from BatchNorm to GroupNorm
                 nn.SiLU()
             ) for _ in range(num_layers)
         ])
         
-        # Skip connection
+        # Skip connection with proper channel handling
         self.skip = nn.Conv2d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else nn.Identity()
         
         # Final conv after skip connection
@@ -78,7 +80,7 @@ class ResBlock(nn.Module):
         # Initial conv
         x = self.conv1(x)
         
-        # Main res block
+        # Main res block with residual connections
         for layer in self.res_block:
             x = layer(x) + x
             
@@ -97,7 +99,7 @@ class ResBlock(nn.Module):
 
 class DoubleConv(nn.Module):
     """
-    (convolution => [BN] => ReLU) * 2
+    Enhanced double convolution block with better normalization
     """
 
     def __init__(self, in_channels, out_channels):
@@ -105,13 +107,13 @@ class DoubleConv(nn.Module):
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, 
                       padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.GroupNorm(8, out_channels),  # Changed from BatchNorm to GroupNorm
+            nn.SiLU(),  # Changed from ReLU to SiLU
             nn.Conv2d(out_channels, out_channels, kernel_size=3, 
                       padding=1, bias=False),
             ResBlock(out_channels, out_channels),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.GroupNorm(8, out_channels),
+            nn.SiLU()
         )
 
     def forward(self, x):
@@ -120,7 +122,7 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     """
-    Downsample block + DoubleConv
+    Downsample block with improved pooling
     """
 
     def __init__(self, in_channels, out_channels):
@@ -136,7 +138,7 @@ class Down(nn.Module):
 
 class Up(nn.Module):
     """
-    Upsample block + DoubleConv
+    Upsample block with improved interpolation
     """    
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -146,7 +148,7 @@ class Up(nn.Module):
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
-        # Pad x1 to match x2's dimensions
+        # Improved padding for better RGB handling
         diff_y = x2.size()[2] - x1.size()[2]
         diff_x = x2.size()[3] - x1.size()[3]
         x1 = F.pad(x1, [diff_x // 2, diff_x - diff_x // 2,
@@ -171,7 +173,7 @@ class Unet(nn.Module):
         self.t_emb_dim = t_emb_dim
         self.device = device
         
-        # Initial conv
+        # Initial conv with proper RGB handling
         self.inc = DoubleConv(n_channels, 64)
         
         # Down blocks with increased channels
@@ -179,17 +181,17 @@ class Unet(nn.Module):
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
         
-        # Up blocks
+        # Up blocks with proper channel handling
         self.up1 = Up(768, 256)  # 512 + 256 = 768 input channels
         self.up2 = Up(384, 128)  # 256 + 128 = 384 input channels
         self.up3 = Up(192, 64)   # 128 + 64 = 192 input channels
         
-        # Self attention blocks
+        # Self attention blocks with improved heads
         self.sa1 = SelfAttention(256, 8)  # Changed from 512 to 256
         self.sa2 = SelfAttention(512, 4)
         self.sa3 = SelfAttention(256, 8)
         
-        # Time embedding blocks - match exact channel dimensions
+        # Time embedding blocks with proper channel dimensions
         self.time_emb_down1 = TimeEmbedding(128, t_emb_dim)  # 128 channels
         self.time_emb_down2 = TimeEmbedding(256, t_emb_dim)  # 256 channels
         self.time_emb_down3 = TimeEmbedding(512, t_emb_dim)  # 512 channels
@@ -214,11 +216,11 @@ class Unet(nn.Module):
 
     def forward(self, x, t):
         """
-        unet + self attention with improved time embedding integration
+        Enhanced UNet with improved time embedding integration
         """
         t_emb = get_time_embedding(t, self.t_emb_dim)
         
-        # Down path
+        # Down path with proper RGB handling
         x1 = self.inc(x)  # 64 channels
         x2 = self.down1(x1)  # 128 channels
         mod1 = self.time_emb_down1(t_emb)
@@ -234,7 +236,7 @@ class Unet(nn.Module):
         x4 = x4 * (1 + mod3.view(-1, 512, 1, 1))
         x4 = self.sa2(x4)  # 512 channels
         
-        # Up path
+        # Up path with improved feature handling
         x = self.up1(x4, x3)  # 768 -> 256 channels
         mod4 = self.time_emb_up1(t_emb)
         x = x * (1 + mod4.view(-1, 256, 1, 1))

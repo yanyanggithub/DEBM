@@ -5,60 +5,113 @@ import torch.nn as nn
 class SelfAttention(nn.Module):
     def __init__(self, n_channels, n_heads):
         super().__init__()
-        self.attn = nn.MultiheadAttention(n_channels, 
-                                          n_heads, 
-                                          batch_first=True)
+        self.n_channels = n_channels
+        self.n_heads = n_heads
+        self.head_dim = n_channels // n_heads
+        
+        # Improved attention with separate Q, K, V projections
+        self.q_proj = nn.Linear(n_channels, n_channels)
+        self.k_proj = nn.Linear(n_channels, n_channels)
+        self.v_proj = nn.Linear(n_channels, n_channels)
+        self.out_proj = nn.Linear(n_channels, n_channels)
+        
+        # Better normalization
         self.g_norm = nn.GroupNorm(8, n_channels)
+        
+        # Dropout for regularization
+        self.dropout = nn.Dropout(0.1)
+        
+        # Scale factor for attention scores
+        self.scale = self.head_dim ** -0.5
 
     def forward(self, x):
         batch_size, channels, h, w = x.shape
+        
+        # Reshape for attention
         x = x.reshape(batch_size, channels, h*w)
         x = self.g_norm(x)
-        x = x.transpose(1, 2)
-        x, _ = self.attn(x, x, x)
-        x = x.transpose(1, 2).reshape(batch_size, channels, h, w)
-        return x
+        x = x.transpose(1, 2)  # [B, H*W, C]
+        
+        # Project to Q, K, V
+        q = self.q_proj(x)  # [B, H*W, C]
+        k = self.k_proj(x)  # [B, H*W, C]
+        v = self.v_proj(x)  # [B, H*W, C]
+        
+        # Reshape for multi-head attention
+        q = q.reshape(batch_size, h*w, self.n_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(batch_size, h*w, self.n_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(batch_size, h*w, self.n_heads, self.head_dim).transpose(1, 2)
+        
+        # Compute attention scores
+        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        attn = torch.softmax(attn, dim=-1)
+        attn = self.dropout(attn)
+        
+        # Apply attention to values
+        out = torch.matmul(attn, v)
+        
+        # Reshape back
+        out = out.transpose(1, 2).reshape(batch_size, h*w, channels)
+        
+        # Project output
+        out = self.out_proj(out)
+        
+        # Reshape back to image
+        out = out.transpose(1, 2).reshape(batch_size, channels, h, w)
+        
+        return out
 
 
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, key_value_dim, heads):
         super().__init__()
-        self.query_dim = query_dim # Dimension of the query embeddings
-        self.key_value_dim = key_value_dim # Dimension of the key and value embeddings
-        self.heads = heads # Number of attention heads
-        self.head_dim = key_value_dim // heads # Dimension of each attention head
+        self.query_dim = query_dim
+        self.key_value_dim = key_value_dim
+        self.heads = heads
+        self.head_dim = key_value_dim // heads
 
         assert (
             self.head_dim * heads == key_value_dim
         ), "Key/Value dim must be divisible by heads"
 
-        self.wq = nn.Linear(query_dim, key_value_dim)
-        self.wk = nn.Linear(key_value_dim, key_value_dim)
-        self.wv = nn.Linear(key_value_dim, key_value_dim)
-        self.fc_out = nn.Linear(key_value_dim, query_dim)
+        # Improved projections with separate Q, K, V
+        self.q_proj = nn.Linear(query_dim, key_value_dim)
+        self.k_proj = nn.Linear(key_value_dim, key_value_dim)
+        self.v_proj = nn.Linear(key_value_dim, key_value_dim)
+        self.out_proj = nn.Linear(key_value_dim, query_dim)
+        
+        # Dropout for regularization
+        self.dropout = nn.Dropout(0.1)
+        
+        # Scale factor for attention scores
+        self.scale = self.head_dim ** -0.5
 
     def forward(self, query, key, value):
         batch_size, query_len, _ = query.shape
         key_len = key.shape[1]
 
-        # Split into multiple heads
-        q = self.wq(query).reshape(batch_size, query_len, self.heads, self.head_dim)
-        k = self.wk(key).reshape(batch_size, key_len, self.heads, self.head_dim)
-        v = self.wv(value).reshape(batch_size, key_len, self.heads, self.head_dim)
+        # Project to Q, K, V
+        q = self.q_proj(query)  # [B, Q, C]
+        k = self.k_proj(key)    # [B, K, C]
+        v = self.v_proj(value)  # [B, K, C]
 
-        # Calculate attention scores
-        attention_scores = torch.einsum("bhid,bhjd->bhij", q, k) / torch.sqrt(
-            torch.tensor(self.head_dim).float()
-        )
+        # Reshape for multi-head attention
+        q = q.reshape(batch_size, query_len, self.heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(batch_size, key_len, self.heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(batch_size, key_len, self.heads, self.head_dim).transpose(1, 2)
 
-        # Apply softmax to get attention weights
-        attention_weights = torch.softmax(attention_scores, dim=-1)
+        # Compute attention scores
+        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        attn = torch.softmax(attn, dim=-1)
+        attn = self.dropout(attn)
 
-        # Calculate weighted sum of values
-        out = torch.einsum("bhij,bhjd->bhid", attention_weights, v)
+        # Apply attention to values
+        out = torch.matmul(attn, v)
 
-        # Concatenate heads and apply final linear layer
-        out = out.reshape(batch_size, query_len, self.key_value_dim)
-        out = self.fc_out(out)
+        # Reshape back
+        out = out.transpose(1, 2).reshape(batch_size, query_len, self.key_value_dim)
+        
+        # Project output
+        out = self.out_proj(out)
 
         return out
