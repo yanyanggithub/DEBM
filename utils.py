@@ -120,6 +120,7 @@ class Trainer:
         self.batch_size = batch_size
         self.device = device
         self.checkpt_epoch = 0
+        self.total_epochs = n_epochs  # Store total epochs separately
         self.best_loss = float('inf')
         self.setup()
         
@@ -160,6 +161,7 @@ class Trainer:
                     self.run_id = checkpoint['mlflow_run_id']
                     run = mlflow.start_run(run_id=self.run_id)
                     logging.info(f"Resuming MLflow run {self.run_id}")
+                    return  # Don't log parameters again for resumed run
                 else:
                     # Start new run
                     run = mlflow.start_run()
@@ -177,11 +179,11 @@ class Trainer:
             self.run_id = run.info.run_id
             logging.info(f"Starting new MLflow run {self.run_id}")
         
-        # Log model parameters
+        # Only log parameters for new runs
         mlflow.log_params({
             "model_type": self.model.__class__.__name__,
             "dataset": self.dataset_name,
-            "n_epochs": self.n_epochs,
+            "n_epochs": self.total_epochs,  # Log total epochs instead of n_epochs
             "learning_rate": self.lr,
             "batch_size": self.batch_size,
             "device": self.device,
@@ -244,15 +246,23 @@ class Trainer:
                     self.lr = checkpoint['lr']
                     if 'best_loss' in checkpoint:
                         self.best_loss = checkpoint['best_loss']
-                    logging.info(f"Loaded checkpoint from epoch {self.checkpt_epoch}")
+                    if 'total_epochs' in checkpoint:
+                        # Add new epochs to the total from checkpoint
+                        self.total_epochs = checkpoint['total_epochs'] + self.n_epochs
+                    else:
+                        # If no total_epochs in checkpoint, start from checkpoint epoch
+                        self.total_epochs = self.checkpt_epoch + self.n_epochs
+                    logging.info(f"Loaded checkpoint from epoch {self.checkpt_epoch}, training for {self.n_epochs} more epochs. Total epochs will be {self.total_epochs}")
                 except Exception as e:
                     logging.error(f"Failed to load model state from checkpoint: {e}")
                     self.checkpt_epoch = 0
                     self.best_loss = float('inf')
+                    self.total_epochs = self.n_epochs
         else:
             logging.info("No checkpoint found, starting from scratch")
             self.checkpt_epoch = 0
             self.best_loss = float('inf')
+            self.total_epochs = self.n_epochs
         
         self.model.to(self.device)
         self.model.train()
@@ -263,7 +273,8 @@ class Trainer:
             'state_dict': self.model.state_dict(),
             'lr': self.lr,
             'best_loss': self.best_loss,
-            'mlflow_run_id': self.run_id  # Save MLflow run ID for resumption
+            'mlflow_run_id': self.run_id,  # Save MLflow run ID for resumption
+            'total_epochs': self.total_epochs  # Save total epochs
         }
         try:
             # Save checkpoint locally
@@ -366,13 +377,15 @@ class Trainer:
         diffusion = Diffusion(timesteps=1000, device=self.device)
         
         # Learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+        last_lr = self.lr  # Track last learning rate to detect changes
         
         # Resume from checkpoint
         start_epoch = self.checkpt_epoch
+        end_epoch = start_epoch + self.n_epochs 
         logging.info(f"Starting training from epoch {start_epoch + 1}")
         
-        for epoch in range(start_epoch, self.n_epochs):
+        for epoch in range(start_epoch, end_epoch):
             epoch_loss = []
             epoch_grad_norm = []
             progress_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{self.n_epochs}')
@@ -421,6 +434,12 @@ class Trainer:
             
             # Update learning rate based on loss
             scheduler.step(mean_loss)
+            current_lr = optimizer.param_groups[0]["lr"]
+            
+            # Log if learning rate changed
+            if current_lr != last_lr:
+                logging.info(f'Learning rate decreased from {last_lr:.6f} to {current_lr:.6f}')
+                last_lr = current_lr
             
             # Save checkpoint if best loss
             if mean_loss < self.best_loss:
@@ -431,11 +450,11 @@ class Trainer:
             self.log_metrics({
                 "epoch_loss": mean_loss,
                 "epoch_grad_norm": mean_grad_norm,
-                "learning_rate": optimizer.param_groups[0]["lr"],
+                "learning_rate": current_lr,
                 "best_loss": self.best_loss,
             }, step=epoch_)
             
-            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {optimizer.param_groups[0]["lr"]:.6f}')
+            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {current_lr:.6f}')
             
             # Run denoising test after each epoch
             self.test_denoising(epoch_, diffusion)
