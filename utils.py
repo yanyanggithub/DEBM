@@ -115,7 +115,66 @@ class Trainer:
         self.output_dir = os.path.dirname(checkpt)
         self.visualization_dir = os.path.join(self.output_dir, 'visualizations')
         os.makedirs(self.visualization_dir, exist_ok=True)
+        
+        # Initialize MLflow tracking
+        self.start_mlflow_run()
     
+    def start_mlflow_run(self):
+        """Initialize MLflow run with model and training parameters"""
+        # End any active runs first
+        try:
+            mlflow.end_run()
+        except:
+            pass
+            
+        # Set up experiment
+        mlflow.set_experiment(f"{self.model.__class__.__name__}_{self.dataset_name}")
+        
+        # Start new run
+        run = mlflow.start_run()
+        self.run_id = run.info.run_id
+        
+        # Log model parameters
+        mlflow.log_params({
+            "model_type": self.model.__class__.__name__,
+            "dataset": self.dataset_name,
+            "n_epochs": self.n_epochs,
+            "learning_rate": self.lr,
+            "batch_size": self.batch_size,
+            "device": self.device,
+            "checkpoint_path": self.checkpt,
+            "model_params": {
+                "n_channels": self.model.n_channels if hasattr(self.model, 'n_channels') else None,
+                "t_emb_dim": self.model.t_emb_dim if hasattr(self.model, 't_emb_dim') else None,
+                "n_visible": self.model.n_visible if hasattr(self.model, 'n_visible') else None,
+            }
+        })
+
+    def end_mlflow_run(self):
+        """End the current MLflow run"""
+        try:
+            mlflow.end_run()
+        except:
+            pass
+
+    def __del__(self):
+        """Cleanup when the trainer is deleted"""
+        self.end_mlflow_run()
+
+    def log_metrics(self, metrics, step):
+        """Log metrics to MLflow with step"""
+        try:
+            mlflow.log_metrics(metrics, step=step)
+        except Exception as e:
+            logging.warning(f"Failed to log metrics to MLflow: {e}")
+
+    def log_artifact(self, artifact_path, artifact_name=None):
+        """Log artifact to MLflow"""
+        try:
+            mlflow.log_artifact(artifact_path, artifact_name)
+        except Exception as e:
+            logging.warning(f"Failed to log artifact to MLflow: {e}")
+
     def setup(self):
         if torch.cuda.is_available():
             self.device = "cuda"
@@ -136,7 +195,10 @@ class Trainer:
             'state_dict': self.model.state_dict(),
             'lr': self.lr
         }
-        mlflow.log_metric("loss", loss_, step=epoch_)
+        try:
+            mlflow.log_metric("loss", loss_, step=epoch_)
+        except Exception as e:
+            logging.warning(f"Failed to log loss to MLflow: {e}")
         logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
         torch.save(checkpoint, self.checkpt)
 
@@ -170,18 +232,25 @@ class Trainer:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Save final denoised images
-            plot(x, (1, 28, 28) if self.dataset_name == 'mnist' else (3, 32, 32),
-                 os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png'))
+            denoised_path = os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png')
+            plot(x, (1, 28, 28) if self.dataset_name == 'mnist' else (3, 32, 32), denoised_path)
             
             # Create and save denoising process GIF
-            create_denoising_gif(
-                noisy_images, denoised_images,
-                os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif')
-            )
+            gif_path = os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif')
+            create_denoising_gif(noisy_images, denoised_images, gif_path)
             
-            # Log metrics
-            mlflow.log_artifact(os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png'))
-            mlflow.log_artifact(os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif'))
+            # Log artifacts and metrics
+            self.log_artifact(denoised_path, f"denoised_epoch_{epoch}")
+            self.log_artifact(gif_path, f"denoising_process_epoch_{epoch}")
+            
+            # Calculate and log image statistics
+            with torch.no_grad():
+                mean_value = x.mean().item()
+                std_value = x.std().item()
+                self.log_metrics({
+                    "denoised_mean": mean_value,
+                    "denoised_std": std_value,
+                }, step=epoch)
             
         self.model.train()
 
@@ -196,6 +265,7 @@ class Trainer:
         best_loss = float('inf')
         for epoch in range(self.n_epochs):
             epoch_loss = []
+            epoch_grad_norm = []
             progress_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{self.n_epochs}')
             
             for batch_idx, (data, _) in enumerate(progress_bar):
@@ -217,6 +287,11 @@ class Trainer:
                 pred_noise = self.model(noisy_data, t)
                 loss = loss_fn(pred_noise, noise)
                 loss.backward()
+                
+                # Calculate gradient norm
+                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                epoch_grad_norm.append(grad_norm.item())
+                
                 optimizer.step()
                 
                 epoch_loss.append(loss.item())
@@ -224,9 +299,15 @@ class Trainer:
                 
                 # Log batch metrics
                 if batch_idx % 100 == 0:
-                    mlflow.log_metric("batch_loss", loss.item(), step=epoch * len(train_loader) + batch_idx)
+                    self.log_metrics({
+                        "batch_loss": loss.item(),
+                        "batch_grad_norm": grad_norm.item(),
+                        "batch_noise_pred_mean": pred_noise.mean().item(),
+                        "batch_noise_pred_std": pred_noise.std().item(),
+                    }, step=epoch * len(train_loader) + batch_idx)
             
             mean_loss = np.mean(epoch_loss)
+            mean_grad_norm = np.mean(epoch_grad_norm)
             epoch_ = epoch + self.checkpt_epoch + 1
             
             # Update learning rate based on loss
@@ -239,9 +320,11 @@ class Trainer:
             
             # Log epoch metrics
             logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {optimizer.param_groups[0]["lr"]:.6f}')
-            mlflow.log_metrics({
+            self.log_metrics({
                 "epoch_loss": mean_loss,
-                "learning_rate": optimizer.param_groups[0]["lr"]
+                "epoch_grad_norm": mean_grad_norm,
+                "learning_rate": optimizer.param_groups[0]["lr"],
+                "best_loss": best_loss,
             }, step=epoch_)
             
             # Run denoising test after each epoch
