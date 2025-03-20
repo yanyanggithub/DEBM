@@ -148,10 +148,7 @@ class Trainer:
             mlflow.enable_system_metrics_logging()
             logging.info("Enabled MLflow system metrics logging")
         except Exception as e:
-            logging.warning(f"Failed to enable MLflow system metrics logging: {e}")
-            
-        # Get experiment name from checkpoint path
-        experiment_name = os.path.basename(self.checkpt).replace('chk_', '').replace('.pt', '')
+            logging.warning(f"Failed to enable MLflow system metrics logging: {e}")           
         
         # Start new run or resume existing run
         if os.path.exists(self.checkpt):
@@ -348,9 +345,9 @@ class Trainer:
             gif_path = os.path.join(self.visualization_dir, f'denoising_process_epoch_{epoch}_{timestamp}.gif')
             create_denoising_gif(noisy_images, denoised_images, gif_path)
             
-            # Log artifacts and metrics
-            self.log_artifact(denoised_path, f"denoised_epoch_{epoch}")
-            self.log_artifact(gif_path, f"denoising_process_epoch_{epoch}")
+            # Log artifacts under visualizations directory
+            self.log_artifact(denoised_path, "visualizations")
+            self.log_artifact(gif_path, "visualizations")
             
             # Calculate and log image statistics
             with torch.no_grad():
