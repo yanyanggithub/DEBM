@@ -20,19 +20,41 @@ def setup_logging(output_dir):
   
     # Configure logging
     log_file = os.path.join(output_dir, 'training.log')
-    handlers = [logging.StreamHandler()]  # Always include console handler
     
+    # Create a custom formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    root_logger.handlers = []
+    
+    # File handler
     try:
         file_handler = logging.FileHandler(log_file)
-        handlers.append(file_handler)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
     except Exception as e:
         print(f"Warning: Failed to create log file handler: {e}")
     
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=handlers
-    )
+    # Console handler with custom stream to avoid tqdm interference
+    class TqdmLoggingHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                msg = self.format(record)
+                tqdm.write(msg)
+                self.flush()
+            except Exception:
+                self.handleError(record)
+    
+    console_handler = TqdmLoggingHandler()
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Suppress MLflow system metrics warnings
+    logging.getLogger('mlflow.system_metrics.metrics').setLevel(logging.ERROR)
 
 def plot(X, img_shape, filename):
     X = X.to("cpu")
