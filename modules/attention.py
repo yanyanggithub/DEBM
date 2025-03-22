@@ -74,8 +74,8 @@ class SelfAttention(nn.Module):
         # Reshape back
         out = out.transpose(1, 2).reshape(batch_size, h*w, channels)
         
-        # Project output
-        out = self.out_proj(out)
+        # Project output - clamp outputs to prevent numerical instability        
+        out = self.out_proj(out).clamp(min=-1.0, max=1.0)  
         
         # Reshape back to image
         out = out.transpose(1, 2).reshape(batch_size, channels, h, w)
