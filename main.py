@@ -12,22 +12,10 @@ import torch
 from modules.stacked_rbm import StackedRBM
 from modules.diffusion import Diffusion
 from modules.unet import Unet
-from ast import literal_eval
-import sys
+import argparse
 import mlflow
-
 from utils import plot, load_dataset, Trainer, setup_logging
 
-dataset_name = 'mnist'  # 'mnist' or 'cifar10'
-model_name = 'rbm' # 'rbm' or 'diffusion' or 'fm'
-batch_size = 128
-n_epochs = 100
-learning_rate = 1e-2
-data_dir = './data'
-output_dir = './output'
-
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -132,27 +120,49 @@ def main_rbm(train_dataset, checkpt_file, img_shape):
 
 
 def parse_args():
-    for arg in sys.argv[1:]:
-        assert arg.startswith('--')
-        key, val = arg.split('=')
-        key = key[2:]
-        if key in globals():
-            try:
-                # attempt to eval it it (e.g. if bool, number, or etc)
-                attempt = literal_eval(val)
-            except (SyntaxError, ValueError):
-                # if that goes wrong, just use the string
-                attempt = val
-            # ensure the types match ok
-            assert type(attempt) == type(globals()[key])
-            print(f"Overriding: {key} = {attempt}")
-            globals()[key] = attempt
-        else:
-            raise ValueError(f"Unknown config key: {key}")
+    parser = argparse.ArgumentParser(description='Training script for RBM and Diffusion models')
+
+    # model and dataset
+    parser.add_argument('--model_name', type=str, default='rbm',
+                        choices=['rbm', 'diffusion', 'fm'],
+                        help='Model name')
+    parser.add_argument('--dataset_name', type=str, default='mnist',
+                        choices=['mnist', 'cifar10'],
+                        help='Dataset name')
+
+    # hyperparameters
+    parser.add_argument('--n_epochs', type=int, default=100,
+                        help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=128,
+                        help='Batch size')
+    parser.add_argument('--learning_rate', type=float, default=1e-2,
+                        help='Learning rate')
+
+    # paths
+    parser.add_argument('--data_dir', type=str, default='./data',
+                        help='Data directory')
+    parser.add_argument('--output_dir', type=str, default='./output',
+                        help='Output directory')
+
+    args = parser.parse_args()
+    return args
 
 
 if __name__ == "__main__":
-    parse_args()
+    args = parse_args()
+
+    # update global variables with command line arguments
+    dataset_name = args.dataset_name
+    model_name = args.model_name
+    n_epochs = args.n_epochs
+    batch_size = args.batch_size
+    learning_rate = args.learning_rate
+    data_dir = args.data_dir
+    output_dir = args.output_dir
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     experiment_name = model_name + '_' + dataset_name
     checkpt = 'chk_' + experiment_name + '.pt'
     checkpt_file = os.path.join(output_dir, checkpt)    
