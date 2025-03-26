@@ -7,7 +7,8 @@ class RBM(nn.Module):
     """
     Restricted Boltzmann Machine
     """
-    def __init__(self, n_visible, n_hidden, k, sparsity=0.1):
+    def __init__(self, n_visible, n_hidden, k, 
+                 sparsity=0.1, dropout_prob=0.2, device="cpu"):
         super().__init__()
 
         # Initialize weights and biases
@@ -19,6 +20,9 @@ class RBM(nn.Module):
 
         # Add L1 regularization to the weights (optional)
         self.l1_weight = nn.Parameter(torch.zeros(n_hidden, n_visible))
+        self.dropout_prob = dropout_prob
+
+        self.device = device
     
     def _sample(self, prob):
         return torch.bernoulli(prob)
@@ -27,14 +31,23 @@ class RBM(nn.Module):
         """
         from visible states to hidden states
         """
-        h_prob = torch.sigmoid(F.linear(v, self.weight, self.h_bias))
+        # Dropout: Randomly set a fraction of the hidden units to zero
+        mask = (torch.rand(v.shape[0], 1) < self.dropout_prob).to(self.device)
+        h_bias = self.h_bias * mask  # Apply dropout to bias
+
+        h_prob = F.linear(v, self.weight, h_bias)
+        h_prob = torch.sigmoid(h_prob) # or other activation function
         return h_prob, self._sample(h_prob)
     
     def _reverse_pass(self, h):
         """
         from hidden states to visible states
         """
-        v_prob = torch.sigmoid(F.linear(h, self.weight.t(), self.v_bias))
+        mask = (torch.rand(h.shape[0], 1) < self.dropout_prob).to(self.device)
+        mask = mask.to(self.device)
+        v_bias = self.v_bias * mask  # Apply dropout to bias
+
+        v_prob = torch.sigmoid(F.linear(h, self.weight.t(), v_bias))
         return v_prob, self._sample(v_prob)
     
     def contrastive_divergence(self, X, lr=0.01, batch_size=64):
