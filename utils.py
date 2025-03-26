@@ -486,9 +486,10 @@ class Trainer:
     def train_rbm(self, train_loader):
         for epoch in range(self.n_epochs):
             loss_ = []
-            if epoch and epoch % 10 == 0:
+            if epoch and epoch % 50 == 0:
                 # learning rate decay
-                self.lr = self.lr * 0.9
+                self.lr = self.lr * 0.5
+                logging.info(f'Epoch {epoch} - Learning Rate: {self.lr:.6f}') 
             for _, (data, _) in enumerate(train_loader):
                 data = data.to(self.device)
                 input = data.view(-1, self.model.n_visible)

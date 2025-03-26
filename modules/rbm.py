@@ -7,14 +7,18 @@ class RBM(nn.Module):
     """
     Restricted Boltzmann Machine
     """
-    def __init__(self, n_visible, n_hidden, k):
+    def __init__(self, n_visible, n_hidden, k, sparsity=0.1):
         super().__init__()
 
         # Initialize weights and biases
-        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.1)
+        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.01)
         self.v_bias = nn.Parameter(torch.zeros(1, n_visible))
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
         self.k  = k
+        self.sparsity = sparsity  # Regularization term for hidden units
+
+        # Add L1 regularization to the weights (optional)
+        self.l1_weight = nn.Parameter(torch.zeros(n_hidden, n_visible))
     
     def _sample(self, prob):
         return torch.bernoulli(prob)
@@ -34,26 +38,39 @@ class RBM(nn.Module):
         return v_prob, self._sample(v_prob)
     
     def contrastive_divergence(self, X, lr=0.01, batch_size=64):
-        pos_h_prob, pos_h_sample = self._pass(X)
-        pos_gradient = torch.matmul(pos_h_prob.t(), X)
+        """
+        Performs one step of Contrastive Divergence learning.
+        """
+        # 1. Positive Phase:  Sample from the current model
+        pos_h_prob, pos_h = self._pass(X)
 
-        h_sample = pos_h_sample
+        # 2. Negative Phase (k steps of CD): Sample and update
+        h = pos_h
         for _ in range(self.k):
-            v_recon_prob, v_sample = self._reverse_pass(h_sample)
-            _, h_sample = self._pass(v_sample)
+            v_recon_prob, v = self._reverse_pass(h)
+            _, h = self._pass(v)  # Update hidden state
 
-        neg_gradient = torch.matmul(h_sample.t(), v_sample)
+        # 3. Calculate Gradients
+        pos_gradient = torch.matmul(pos_h_prob.t(), X)
+        neg_gradient = torch.matmul(h.t(), v)
+
         gradient = pos_gradient - neg_gradient
-        gradient = gradient/batch_size
 
-        dv_bias = torch.sum(X - v_sample, dim=0)/batch_size
-        dh_bias = torch.sum(pos_h_prob - h_sample, dim=0)/batch_size
+        # 4. Regularization (L1 regularization on hidden units)
+        l1_term = self.sparsity * self.l1_weight  # Sparsity encourages zero weights
+        gradient += l1_term
+
+        # 5. Update Parameters
+        gradient = gradient/batch_size
+        dv_bias = torch.sum(X - v, dim=0)/batch_size
+        dh_bias = torch.sum(pos_h_prob - h, dim=0)/batch_size
         with torch.no_grad():
             self.weight += lr * gradient
             self.v_bias += lr * dv_bias
             self.h_bias += lr * dh_bias
 
-        loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=0))
+        # 6. Calculate Loss (Mean Squared Error between reconstructed and original data)
+        loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1)) # Mean squared error
         return loss
     
     def forward(self, v):
