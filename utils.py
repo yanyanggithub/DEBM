@@ -341,7 +341,7 @@ class Trainer:
             logging.warning(f"Failed to save checkpoint or log to MLflow: {e}")
         logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
 
-    def test_denoising(self, epoch, diffusion):
+    def test_diffusion(self, epoch, diffusion):
         """Test denoising process and create visualizations"""
         self.model.eval()
         with torch.no_grad():
@@ -479,24 +479,103 @@ class Trainer:
             logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {current_lr:.6f}')
             
             # Run denoising test after each epoch
-            self.test_denoising(epoch_, diffusion)
-            
+            self.test_diffusion(epoch_, diffusion)            
         return self.model
+    
+    def test_rbm(self, epoch):
+        """Test denoising process and create visualizations"""
+        self.model.eval()
+        if self.dataset_name == 'mnist':
+                img_shape = (28, 28)
+        else:  # cifar10
+            img_shape = (3, 32, 32)
+        with torch.no_grad():
+            # Generate sample batch
+            x = torch.randn((25, self.model.n_visible))
+            x = x.to(self.device)    
+
+            # Denoising process
+            v_gen = self.model.generate(x)
+            w0 = self.model.rbm_modules[0].weight
+            
+            # Create visualizations
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Save final denoised images
+            denoised_path = os.path.join(self.visualization_dir, f'denoised_epoch_{epoch}_{timestamp}.png')
+            filter_path = os.path.join(self.visualization_dir, f'filter_epoch_{epoch}_{timestamp}.png')
+
+             # plot the results
+            plot(w0, img_shape, filter_path)
+            plot(v_gen, img_shape, denoised_path)
+            
+            # Log artifacts under visualizations directory
+            self.log_artifact(denoised_path, "visualizations")
+            self.log_artifact(filter_path, "visualizations")
+            
+            # Calculate and log image statistics
+            with torch.no_grad():
+                mean_value = x.mean().item()
+                std_value = x.std().item()
+                self.log_metrics({
+                    "denoised_mean": mean_value,
+                    "denoised_std": std_value,
+                }, step=epoch)
+            
+        self.model.train()
 
     def train_rbm(self, train_loader):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        for epoch in range(self.n_epochs):
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+        last_lr = self.lr  # Track last learning rate to detect changes
+         # Resume from checkpoint
+        start_epoch = self.checkpt_epoch
+        end_epoch = start_epoch + self.n_epochs 
+        logging.info(f"Starting training from epoch {start_epoch + 1}")
+        for epoch in range(start_epoch, end_epoch):
             optimizer.zero_grad()
-            loss_ = []
+            current_lr = optimizer.param_groups[0]["lr"]
+            epoch_loss = []
+            epoch_grad_norm = []
             for _, (data, _) in enumerate(train_loader):
                 data = data.to(self.device)
                 input = data.view(-1, self.model.n_visible)
-                loss = self.model.fit(input, self.lr, self.batch_size)
-                loss_.append(loss.item())
+                loss = self.model.fit(input, current_lr, self.batch_size)
+                epoch_loss.append(loss.item())
+                # Calculate gradient norm
+                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                epoch_grad_norm.append(grad_norm.item())
                 optimizer.step()
-
-            epoch_ = epoch + self.checkpt_epoch + 1            
-            self.save_chekpoint(epoch_, np.mean(loss_)) 
+        
+            mean_loss = np.mean(epoch_loss)
+            mean_grad_norm = np.mean(epoch_grad_norm)
+            epoch_ = epoch + 1
+            
+            # Update learning rate based on loss
+            scheduler.step(mean_loss)            
+            
+            # Log if learning rate changed
+            if current_lr != last_lr:
+                logging.info(f'Learning rate decreased from {last_lr:.6f} to {current_lr:.6f}')
+                last_lr = current_lr
+            
+            # Save checkpoint if best loss
+            if mean_loss < self.best_loss:
+                self.best_loss = mean_loss
+                self.save_chekpoint(epoch_, mean_loss)
+            
+            # Log epoch metrics
+            self.log_metrics({
+                "epoch_loss": mean_loss,
+                "epoch_grad_norm": mean_grad_norm,
+                "learning_rate": current_lr,
+                "best_loss": self.best_loss,
+            }, step=epoch_)
+            
+            logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {current_lr:.6f}')
+            if epoch % 10 == 0:
+                self.test_rbm(epoch)
+            
         return self.model
 
     # flow matching
