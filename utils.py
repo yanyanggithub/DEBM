@@ -573,8 +573,8 @@ class Trainer:
             }, step=epoch_)
             
             logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {current_lr:.6f}')
-            if epoch % 10 == 0:
-                self.test_rbm(epoch)
+            if epoch_ % 10 == 0:
+                self.test_rbm(epoch_)
             
         return self.model
 

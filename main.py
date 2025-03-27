@@ -85,10 +85,9 @@ def main_diffusion(train_dataset, checkpt_file, img_shape):
 
 # restricted boltzmann machine
 def main_rbm(train_dataset, checkpt_file, img_shape):
-    k = 1
     if dataset_name == 'mnist':
         filter1_shape = (16, 16)
-        n_nodes = [784, 256, 128]
+        n_nodes = [784, 256, 128, 64]
     elif dataset_name == 'cifar10':
         filter1_shape = (32, 32)
         n_nodes = [3072, 1024, 784]
@@ -96,7 +95,7 @@ def main_rbm(train_dataset, checkpt_file, img_shape):
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=batch_size, 
                                                shuffle=True)
-    model = StackedRBM(n_nodes, k, dropout=0.3, device=device)
+    model = StackedRBM(n_nodes, k=3, dropout=0.1, device=device)
 
     trainer = Trainer(model, dataset_name, checkpt=checkpt_file, n_epochs=n_epochs, 
                       lr=learning_rate, batch_size=batch_size, device=device)
