@@ -339,7 +339,7 @@ class Trainer:
             
         except Exception as e:
             logging.warning(f"Failed to save checkpoint or log to MLflow: {e}")
-        logging.info(f'Epoch {epoch_} - Loss: {loss_:.4f}')
+        logging.info(f'Saving new checkpt at epoch {epoch_} - Loss: {loss_:.4f}')
 
     def test_diffusion(self, epoch, diffusion):
         """Test denoising process and create visualizations"""
