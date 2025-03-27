@@ -107,9 +107,10 @@ def main_rbm(train_dataset, checkpt_file, img_shape):
     w1 = model.rbm_modules[1].weight
 
     # test the generated image
-    images = next(iter(train_loader))[0]
-    images = images.to(device)
-    v_gen, _ = model(images.view(-1, model.n_visible))
+    sample_batch_size = 25
+    noise = torch.randn(sample_batch_size, model.n_visible).to(device)
+    noise = noise.to(device)
+    v_gen = model.generate(noise)
 
     # plot the results
     plot(w0, img_shape, './output/rbm_filters0.png')

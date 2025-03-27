@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from .rbm import RBM
 
@@ -46,3 +47,9 @@ class StackedRBM(nn.Module):
                                                   batch_size=batch_size)
             _, v = model(v)
         return loss
+    
+    def generate(self, noise):
+        with torch.no_grad():
+            generated_image, _ = self.forward(noise)
+        return generated_image
+
