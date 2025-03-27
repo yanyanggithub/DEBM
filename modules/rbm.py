@@ -2,17 +2,26 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+def initialize_weights(m):
+    """
+    Initializes the weights of an RBM using Glorot/Xavier initialization.
+    """
+    if isinstance(m, nn.Linear):  # Apply to linear layers (weight matrix)
+        nn.init.xavier_uniform_(m.weight)
+        # You can also initialize biases if needed:
+        nn.init.zeros_(m.bias)
+
 
 class RBM(nn.Module):
     """
     Restricted Boltzmann Machine
     """
     def __init__(self, n_visible, n_hidden, k, 
-                 sparsity=0.1, dropout_prob=0.2, device="cpu"):
+                 sparsity=0.01, dropout_prob=0.2, device="cpu"):
         super().__init__()
 
         # Initialize weights and biases
-        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.01)
+        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.01) # Initial value for Xavier initialization
         self.v_bias = nn.Parameter(torch.zeros(1, n_visible))
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
         self.k  = k
@@ -21,8 +30,10 @@ class RBM(nn.Module):
         # Add L1 regularization to the weights (optional)
         self.l1_weight = nn.Parameter(torch.zeros(n_hidden, n_visible))
         self.dropout_prob = dropout_prob
-
         self.device = device
+
+        # Apply weight initialization after creation
+        self.apply(initialize_weights)  # Crucial: Applies the init function to all submodules
     
     def _sample(self, prob):
         return torch.bernoulli(prob)

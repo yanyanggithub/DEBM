@@ -3,7 +3,7 @@ from .rbm import RBM
 
 
 class StackedRBM(nn.Module):
-    def __init__(self, n_nodes=[784, 256, 128], k=1, device="cpu"):
+    def __init__(self, n_nodes=[784, 256, 128], k=1, dropout=0.2, device="cpu"):
         super().__init__()
         self.n_nodes = n_nodes
         self.n_visible = n_nodes[0]
@@ -14,7 +14,7 @@ class StackedRBM(nn.Module):
         for i in range(len(self.n_nodes) - 1):
             n_visible = n_nodes[i]
             n_hidden = n_nodes[i+1]
-            rbm = RBM(n_visible, n_hidden, self.k, device=device)
+            rbm = RBM(n_visible, n_hidden, self.k, dropout_prob=dropout, device=device)
             rbm_modules.append(rbm)
         self.rbm_modules = nn.ModuleList(rbm_modules)
 

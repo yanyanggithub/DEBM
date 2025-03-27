@@ -484,19 +484,18 @@ class Trainer:
         return self.model
 
     def train_rbm(self, train_loader):
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         for epoch in range(self.n_epochs):
+            optimizer.zero_grad()
             loss_ = []
-            if epoch and epoch % 50 == 0:
-                # learning rate decay
-                self.lr = self.lr * 0.5
-                logging.info(f'Epoch {epoch} - Learning Rate: {self.lr:.6f}') 
             for _, (data, _) in enumerate(train_loader):
                 data = data.to(self.device)
                 input = data.view(-1, self.model.n_visible)
                 loss = self.model.fit(input, self.lr, self.batch_size)
                 loss_.append(loss.item())
+                optimizer.step()
 
-            epoch_ = epoch + self.checkpt_epoch + 1
+            epoch_ = epoch + self.checkpt_epoch + 1            
             self.save_chekpoint(epoch_, np.mean(loss_)) 
         return self.model
 
