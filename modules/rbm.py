@@ -77,14 +77,17 @@ class RBM(nn.Module):
         # 3. Calculate Gradients
         pos_gradient = torch.matmul(pos_h_prob.t(), X)
         neg_gradient = torch.matmul(h.t(), v)
-
         gradient = pos_gradient - neg_gradient
 
         # 4. Regularization (L1 regularization on hidden units)
         l1_term = self.sparsity * self.l1_weight  # Sparsity encourages zero weights
         gradient += l1_term
 
-        # 5. Update Parameters
+        # 5. Numerical Stability (Gradient Clipping)
+        torch.nn.utils.clip_grad_norm_(self.weight, max_norm=0.25)
+        torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
+
+        # 6. Update Parameters
         gradient = gradient/batch_size
         dv_bias = torch.sum(X - v, dim=0)/batch_size
         dh_bias = torch.sum(pos_h_prob - h, dim=0)/batch_size
@@ -93,7 +96,7 @@ class RBM(nn.Module):
             self.v_bias += lr * dv_bias
             self.h_bias += lr * dh_bias
 
-        # 6. Calculate Loss (Mean Squared Error between reconstructed and original data)
+        # 7. Calculate Loss (Mean Squared Error between reconstructed and original data)
         loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1)) # Mean squared error
         return loss
     

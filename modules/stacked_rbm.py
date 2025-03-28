@@ -4,7 +4,7 @@ from .rbm import RBM
 
 
 class StackedRBM(nn.Module):
-    def __init__(self, n_nodes=[784, 256, 128], k=1, dropout=0.2, device="cpu"):
+    def __init__(self, n_nodes, k=1, dropout=0.2, device="cpu"):
         super().__init__()
         self.n_nodes = n_nodes
         self.n_visible = n_nodes[0]
