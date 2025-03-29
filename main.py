@@ -95,7 +95,7 @@ def main_rbm(train_dataset, checkpt_file, img_shape):
     train_loader = torch.utils.data.DataLoader(train_dataset, 
                                                batch_size=batch_size, 
                                                shuffle=True)
-    model = StackedRBM(n_nodes, k=3, dropout=0.1, device=device)
+    model = StackedRBM(n_nodes, k=10, dropout=0.1, device=device)
 
     trainer = Trainer(model, dataset_name, checkpt=checkpt_file, n_epochs=n_epochs, 
                       lr=learning_rate, batch_size=batch_size, device=device)
