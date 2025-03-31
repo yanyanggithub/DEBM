@@ -1,10 +1,5 @@
 # Deep Energy-Based Models (DEBM)
-Work in progress... It is a repository to test ideas on energy modeling for image generation (e.g. Boltzmann machines, denoising diffusion).  
-
----
-At the moment, this repo has got only some basic stuff as the following...
-
-The training script is designed for a poor person with a modest laptop GPU (or no GPU) to train stacked Restricted Boltzmann machines (RBM) and Diffusion models on MNIST or CIFAR10 datasets.
+In this repository, you will find a collection of simplistic energy modeling solutions for image generation, including Boltzmann machines and denoising diffusion. This repository is designed with the aim of enabling individuals with modest laptop GPUs (or no GPU) to train stacked Restricted Boltzmann machines (RBM) and Diffusion models on MNIST or CIFAR10 datasets.
 
 You can specify in command line:
 ```
@@ -26,4 +21,5 @@ python3 main.py --model_name=diffusion --dataset_name=mnist --n_epochs=10 --lear
 Here is an example of a generated image from denosing diffusion probabilistic models after 10 epochs.
 
 ![image](assets/diffusion.png)
+
 
