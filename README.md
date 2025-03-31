@@ -1,5 +1,5 @@
 # Deep Energy-Based Models (DEBM)
-In this repository, you will find a collection of simplistic energy modeling solutions for image generation, including Boltzmann machines and denoising diffusion. This repository is designed with the aim of enabling individuals with modest laptop GPUs (or no GPU) to train stacked Restricted Boltzmann machines (RBM) and Diffusion models on MNIST or CIFAR10 datasets.
+Here is a collection of simplistic energy modeling solutions for image generation, including Boltzmann machines and denoising diffusion. This repository is designed with the aim of enabling individuals with modest laptop GPUs (or no GPU) to train stacked Restricted Boltzmann machines (RBM) and Diffusion models on MNIST or CIFAR10 datasets.
 
 You can specify in command line:
 ```
