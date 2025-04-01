@@ -479,7 +479,8 @@ class Trainer:
             logging.info(f'Epoch {epoch_} - Mean Loss: {mean_loss:.4f} - LR: {current_lr:.6f}')
             
             # Run denoising test after each epoch
-            self.test_diffusion(epoch_, diffusion)            
+            if epoch_ % 10 == 0:
+                self.test_diffusion(epoch_, diffusion)            
         return self.model
     
     def test_rbm(self, epoch):
