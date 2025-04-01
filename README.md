@@ -16,9 +16,9 @@ RBM learns to reconstructed an image from hidden -> visible layers, that is not 
 
 Diffusion is a denoising probabilistic model. It is more powerful but is a scored-based model (somewhat different to just energy). Training diffusion is slow, you can give a try in command line:
 ```
-python3 main.py --model_name=diffusion --dataset_name=mnist --n_epochs=10 --learning_rate=0.001
+python3 main.py --model_name=diffusion --dataset_name=mnist --n_epochs=100 --learning_rate=0.001
 ```
-Here is an example of a generated image from denosing diffusion probabilistic models after 10 epochs.
+Here is an example of a generated image from denosing diffusion probabilistic models after 100 epochs.
 
 ![image](assets/diffusion.png)
 
