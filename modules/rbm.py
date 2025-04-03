@@ -75,12 +75,12 @@ class RBM(nn.Module):
             _, h = self._pass(v)  # Update hidden state
 
         # 3. Calculate Gradients
-        pos_gradient = torch.matmul(pos_h_prob.t(), X)
-        neg_gradient = torch.matmul(h.t(), v)
+        pos_gradient = torch.matmul(pos_h_prob.t(), X) / batch_size
+        neg_gradient = torch.matmul(h.t(), v) / batch_size
         gradient = pos_gradient - neg_gradient
 
         # 4. Regularization (L1 regularization on hidden units)
-        l1_term = self.sparsity * self.l1_weight  # Sparsity encourages zero weights
+        l1_term = self.sparsity * self.l1_weight.sign()  # Sparsity encourages zero weights
         gradient += l1_term
 
         # 5. Numerical Stability (Gradient Clipping)
@@ -88,9 +88,8 @@ class RBM(nn.Module):
         torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
 
         # 6. Update Parameters
-        gradient = gradient/batch_size
-        dv_bias = torch.sum(X - v, dim=0)/batch_size
-        dh_bias = torch.sum(pos_h_prob - h, dim=0)/batch_size
+        dv_bias = (X - v_recon_prob).mean(dim=0)
+        dh_bias = (pos_h_prob - h).mean(dim=0)
         with torch.no_grad():
             self.weight += lr * gradient
             self.v_bias += lr * dv_bias
