@@ -83,11 +83,7 @@ class RBM(nn.Module):
         l1_term = self.sparsity * self.l1_weight.sign()  # Sparsity encourages zero weights
         gradient += l1_term
 
-        # 5. Numerical Stability (Gradient Clipping)
-        torch.nn.utils.clip_grad_norm_(self.weight, max_norm=0.25)
-        torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
-
-        # 6. Update Parameters
+        # 5. Update Parameters
         dv_bias = (X - v_recon_prob).mean(dim=0)
         dh_bias = (pos_h_prob - h).mean(dim=0)
         with torch.no_grad():
@@ -95,7 +91,7 @@ class RBM(nn.Module):
             self.v_bias += lr * dv_bias
             self.h_bias += lr * dh_bias
 
-        # 7. Calculate Loss (Mean Squared Error between reconstructed and original data)
+        # 6. Calculate Loss (Mean Squared Error between reconstructed and original data)
         loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1)) # Mean squared error
         return loss
     
