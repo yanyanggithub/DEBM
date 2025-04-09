@@ -11,7 +11,6 @@ def initialize_weights(m):
         # You can also initialize biases if needed:
         nn.init.zeros_(m.bias)
 
-
 class RBM(nn.Module):
     """
     Restricted Boltzmann Machine
@@ -21,10 +20,10 @@ class RBM(nn.Module):
         super().__init__()
 
         # Initialize weights and biases
-        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.01) # Initial value for Xavier initialization
+        self.weight = nn.Parameter(torch.randn(n_hidden, n_visible) * 0.01)  # Initial value for Xavier initialization
         self.v_bias = nn.Parameter(torch.zeros(1, n_visible))
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
-        self.k  = k
+        self.k = k
         self.sparsity = sparsity  # Regularization term for hidden units
 
         # Add L1 regularization to the weights (optional)
@@ -47,7 +46,7 @@ class RBM(nn.Module):
         h_bias = self.h_bias * mask  # Apply dropout to bias
 
         h_prob = F.linear(v, self.weight, h_bias)
-        h_prob = torch.sigmoid(h_prob) # or other activation function
+        h_prob = torch.sigmoid(h_prob)
         return h_prob, self._sample(h_prob)
     
     def _reverse_pass(self, h):
@@ -65,7 +64,7 @@ class RBM(nn.Module):
         """
         Performs one step of Contrastive Divergence learning.
         """
-        # 1. Positive Phase:  Sample from the current model
+        # 1. Positive Phase: Sample from the current model
         pos_h_prob, pos_h = self._pass(X)
 
         # 2. Negative Phase (k steps of CD): Sample and update
@@ -96,7 +95,7 @@ class RBM(nn.Module):
             self.h_bias += lr * dh_bias
 
         # 7. Calculate Loss (Mean Squared Error between reconstructed and original data)
-        loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1)) # Mean squared error
+        loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1))  # Mean squared error
         return loss
     
     def forward(self, v):
