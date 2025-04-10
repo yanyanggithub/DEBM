@@ -8,8 +8,8 @@ def initialize_weights(m):
     """
     if isinstance(m, nn.Linear):  # Apply to linear layers (weight matrix)
         nn.init.xavier_uniform_(m.weight)
-        # You can also initialize biases if needed:
-        nn.init.zeros_(m.bias)
+        if m.bias is not None:
+            torch.nn.init.zeros_(m.bias)
 
 class RBM(nn.Module):
     """
@@ -35,7 +35,10 @@ class RBM(nn.Module):
         self.apply(initialize_weights)  # Crucial: Applies the init function to all submodules
     
     def _sample(self, prob):
-        return torch.bernoulli(prob)
+        if torch.is_tensor(prob):
+            return (torch.rand_like(prob) < prob).float()
+        else:
+            return 1.0 if torch.rand() < prob else 0.0
 
     def _pass(self, v):
         """
