@@ -25,9 +25,6 @@ class RBM(nn.Module):
         self.h_bias = nn.Parameter(torch.zeros(1, n_hidden))
         self.k = k
         self.sparsity = sparsity  # Regularization term for hidden units
-
-        # Add L1 regularization to the weights (optional)
-        self.l1_weight = nn.Parameter(torch.zeros(n_hidden, n_visible))
         self.dropout_prob = dropout_prob
         self.device = device
 
@@ -82,7 +79,8 @@ class RBM(nn.Module):
         gradient = pos_gradient - neg_gradient
 
         # 4. Regularization (L1 regularization on hidden units)
-        l1_term = self.sparsity * self.l1_weight.sign()  # Sparsity encourages zero weights
+        l1_term = self.sparsity * (self.weight.sign() - self.sparsity)  # Encourages weights to be close to zero
+        l1_term = l1_term / batch_size  # Normalize by batch size
         gradient += l1_term
 
         # 5. Numerical Stability (Gradient Clipping)
