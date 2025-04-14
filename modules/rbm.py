@@ -64,30 +64,30 @@ class RBM(nn.Module):
         """
         Performs one step of Contrastive Divergence learning.
         """
-        # 1. Positive Phase: Sample from the current model
+        # Positive Phase: Sample from the current model
         pos_h_prob, pos_h = self._pass(X)
 
-        # 2. Negative Phase (k steps of CD): Sample and update
+        # Negative Phase (k steps of CD): Sample and update
         h = pos_h
         for _ in range(self.k):
             v_recon_prob, v = self._reverse_pass(h)
             _, h = self._pass(v)  # Update hidden state
 
-        # 3. Calculate Gradients
+        # Calculate Gradients
         pos_gradient = torch.matmul(pos_h_prob.t(), X) / batch_size
         neg_gradient = torch.matmul(h.t(), v) / batch_size
         gradient = pos_gradient - neg_gradient
 
-        # 4. Regularization (L1 regularization on hidden units)
-        l1_term = self.sparsity * (self.weight.sign() - self.sparsity)  # Encourages weights to be close to zero
-        l1_term = l1_term / batch_size  # Normalize by batch size
-        gradient += l1_term
+        # # 4. Regularization (L1 regularization on hidden units)
+        # l1_term = self.sparsity * (self.weight.sign() - self.sparsity)  # Encourages weights to be close to zero
+        # l1_term = l1_term / batch_size  # Normalize by batch size
+        # gradient += l1_term
 
-        # 5. Numerical Stability (Gradient Clipping)
+        # Numerical Stability (Gradient Clipping)
         torch.nn.utils.clip_grad_norm_(self.weight, max_norm=0.25)
         torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
 
-        # 6. Update Parameters
+        # Update Parameters
         dv_bias = (X - v_recon_prob).mean(dim=0)
         dh_bias = (pos_h_prob - h).mean(dim=0)
         with torch.no_grad():
@@ -95,7 +95,7 @@ class RBM(nn.Module):
             self.v_bias += lr * dv_bias
             self.h_bias += lr * dh_bias
 
-        # 7. Calculate Loss (Mean Squared Error between reconstructed and original data)
+        # Calculate Loss (Mean Squared Error between reconstructed and original data)
         loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1))  # Mean squared error
         return loss
     
