@@ -78,11 +78,6 @@ class RBM(nn.Module):
         neg_gradient = torch.matmul(h.t(), v) / batch_size
         gradient = pos_gradient - neg_gradient
 
-        # # 4. Regularization (L1 regularization on hidden units)
-        # l1_term = self.sparsity * (self.weight.sign() - self.sparsity)  # Encourages weights to be close to zero
-        # l1_term = l1_term / batch_size  # Normalize by batch size
-        # gradient += l1_term
-
         # Numerical Stability (Gradient Clipping)
         torch.nn.utils.clip_grad_norm_(self.weight, max_norm=0.25)
         torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
