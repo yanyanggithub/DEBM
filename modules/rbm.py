@@ -28,6 +28,12 @@ class RBM(nn.Module):
         self.dropout_prob = dropout_prob
         self.device = device
 
+        # Initialize momentum terms
+        self.weight_momentum = torch.zeros_like(self.weight).to(device)
+        self.v_bias_momentum = torch.zeros_like(self.v_bias).to(device)
+        self.h_bias_momentum = torch.zeros_like(self.h_bias).to(device)
+        self.momentum = 0.5  # Initial momentum value
+
         # Apply weight initialization after creation
         self.apply(initialize_weights)  # Crucial: Applies the init function to all submodules
     
@@ -82,13 +88,17 @@ class RBM(nn.Module):
         torch.nn.utils.clip_grad_norm_(self.weight, max_norm=0.25)
         torch.nn.utils.clip_grad_norm_(self.v_bias, max_norm=0.25)
 
-        # Update Parameters
+        # Update Parameters with momentum
         dv_bias = (X - v_recon_prob).mean(dim=0)
         dh_bias = (pos_h_prob - h).mean(dim=0)
         with torch.no_grad():
-            self.weight += lr * gradient
-            self.v_bias += lr * dv_bias
-            self.h_bias += lr * dh_bias
+            self.weight_momentum = self.momentum * self.weight_momentum + lr * gradient
+            self.v_bias_momentum = self.momentum * self.v_bias_momentum + lr * dv_bias
+            self.h_bias_momentum = self.momentum * self.h_bias_momentum + lr * dh_bias
+
+            self.weight += self.weight_momentum
+            self.v_bias += self.v_bias_momentum
+            self.h_bias += self.h_bias_momentum
 
         # Calculate Loss (Mean Squared Error between reconstructed and original data)
         loss = torch.mean(torch.sum((X - v_recon_prob)**2, dim=1))  # Mean squared error
